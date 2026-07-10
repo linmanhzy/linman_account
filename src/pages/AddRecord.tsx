@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Card, Form, InputNumber, DatePicker, Input, Button, Segmented, message } from 'antd'
 import dayjs from 'dayjs'
 import CategorySelect from '../components/CategorySelect'
+import { addRecord } from '../data/db'
 
 interface Props {
   onSuccess?: () => void
@@ -23,7 +24,7 @@ const AddRecord: React.FC<Props> = ({ onSuccess }) => {
       }
 
       setLoading(true)
-      await window.electronAPI.addRecord({
+      await addRecord({
         type,
         amount: values.amount,
         date: values.date.format('YYYY-MM-DD'),

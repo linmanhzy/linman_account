@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Card, Table, Tag, Segmented, DatePicker, Popconfirm, Button, message } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
+import { getRecords, deleteRecord } from '../data/db'
 
 const RecordList: React.FC = () => {
   const [records, setRecords] = useState<RecordItem[]>([])
@@ -21,7 +22,7 @@ const RecordList: React.FC = () => {
         filter.type = filterType
       }
       filter.month = filterMonth.format('YYYY-MM')
-      const result = await window.electronAPI.getRecords(filter)
+      const result = await getRecords(filter)
       setRecords(result)
     } finally {
       setLoading(false)
@@ -29,7 +30,7 @@ const RecordList: React.FC = () => {
   }
 
   const handleDelete = async (id: number) => {
-    await window.electronAPI.deleteRecord(id)
+    await deleteRecord(id)
     message.success('删除成功')
     loadRecords()
   }

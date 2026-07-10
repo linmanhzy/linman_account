@@ -2,53 +2,30 @@
   "name": "linman-account-book",
   "version": "1.0.0",
   "description": "林蛮记账 - 个人日常记账桌面应用",
-  "main": "./test-module.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "pack:win": "electron-vite build && electron-builder --win",
-    "pack:mac": "electron-vite build && electron-builder --mac",
-    "pack:all": "electron-vite build && electron-builder --win --mac"
+    "dev:web": "vite",
+    "build:web": "tsc && vite build",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "preview": "vite preview"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@ant-design/icons": "^5.5.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-sql": "^2.0.0",
     "antd": "^5.22.0",
-    "dayjs": "^1.11.13",
-    "sql.js": "^1.11.0"
+    "dayjs": "^1.11.13"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^25.9.8",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^5.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
-  },
-  "build": {
-    "appId": "com.linman.accountbook",
-    "productName": "林蛮记账",
-    "directories": {
-      "output": "release"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "resources/icon.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "resources/icon.icns"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
-    }
   }
 }

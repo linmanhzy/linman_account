@@ -6,6 +6,7 @@ import {
   WalletOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { getMonthStats } from '../data/db'
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 })
@@ -16,7 +17,7 @@ const Dashboard: React.FC = () => {
   }, [])
 
   const loadStats = async () => {
-    const result = await window.electronAPI.getMonthStats(currentMonth)
+    const result = await getMonthStats(currentMonth)
     setStats(result)
   }
 

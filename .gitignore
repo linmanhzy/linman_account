@@ -4,6 +4,11 @@ node_modules/
 # 编译产物（重新编译就能生成）
 out/
 release/
+dist/
+
+# Tauri / Rust 编译产物
+src-tauri/target/
+src-tauri/gen/
 
 # IDE 和编辑器配置
 .idea/
