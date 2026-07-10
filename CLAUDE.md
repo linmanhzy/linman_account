@@ -64,14 +64,18 @@
 
 | 层面 | 技术选型 | 说明 |
 |------|---------|------|
-| 桌面框架 | Electron | 把网页技术打包成桌面APP |
+| 桌面框架 | **Tauri v2** | ✅ 已迁移 — 比 Electron 更轻量（安装包 3-5MB），原生性能 |
+| 后端语言 | Rust | Tauri 后端，处理系统调用和数据库 |
 | 前端框架 | React | 构建用户界面的 JavaScript 框架 |
 | UI 组件库 | **Ant Design 5.x** | ✅ 已确认 — 国内最流行，中文文档一流 |
-| 数据存储 | **SQLite (better-sqlite3)** | ✅ 已确认 — 本地数据库，专业可靠 |
+| 数据存储 | **SQLite (sqlx)** | ✅ 已确认 — 通过 Tauri SQL Plugin 实现 |
 | 界面布局 | **侧边栏布局** | ✅ 已确认 — 左侧导航，右侧内容 |
-| 构建工具 | Vite + electron-vite | 快速的开发构建工具 |
-| 打包工具 | electron-builder | 打包成 Windows .exe 和 Mac .dmg |
-| 开发语言 | TypeScript | JavaScript 的增强版，更安全可靠 |
+| 构建工具 | Vite + Tauri CLI | 快速的开发构建工具 |
+| 打包工具 | Tauri Bundler | 打包成 Windows .exe/.msi 和 Mac .dmg |
+| 开发语言 | TypeScript + Rust | 前端 TypeScript，后端 Rust |
+
+> **为什么从 Electron 换成 Tauri？**
+> Windows 上 Electron 有一个已知 Bug (#49034)，导致核心模块无法加载。Tauri 没有这个问题，而且更轻更快。
 
 ---
 
