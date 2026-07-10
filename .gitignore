@@ -1,0 +1,28 @@
+# 依赖包（几百MB，npm install 就能还原）
+node_modules/
+
+# 编译产物（重新编译就能生成）
+out/
+release/
+
+# IDE 和编辑器配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code 内部缓存
+.claude/
+
+# 临时下载文件
+*.zip
+*.tar.gz
+
+# 日志文件
+*.log
+npm-debug.log*
