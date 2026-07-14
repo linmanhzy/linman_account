@@ -23,6 +23,7 @@ desktop.ini
 
 # Claude Code 内部缓存
 .claude/
+.codebuddy/
 
 # 临时下载文件
 *.zip

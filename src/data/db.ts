@@ -1,7 +1,37 @@
 import Database from '@tauri-apps/plugin-sql';
+import { expenseCategories, incomeCategories } from './categories';
 
 let db: Database | null = null;
 let dbPromise: Promise<Database> | null = null;
+
+// 首次启动时写入默认分类到数据库
+async function seedDefaultCategories(database: Database): Promise<void> {
+  const rows = await database.select<{ cnt: number }[]>(
+    'SELECT COUNT(*) as cnt FROM categories'
+  );
+  if (rows.length === 0 || rows[0].cnt > 0) return;
+
+  let sortOrder = 0;
+  const inserts: { type: string; name_l1: string; name_l2: string; icon: string; sort_order: number }[] = [];
+
+  for (const l1 of expenseCategories) {
+    for (const l2 of l1.children) {
+      inserts.push({ type: 'expense', name_l1: l1.name, name_l2: l2, icon: l1.icon, sort_order: sortOrder++ });
+    }
+  }
+  for (const l1 of incomeCategories) {
+    for (const l2 of l1.children) {
+      inserts.push({ type: 'income', name_l1: l1.name, name_l2: l2, icon: l1.icon, sort_order: sortOrder++ });
+    }
+  }
+
+  for (const item of inserts) {
+    await database.execute(
+      'INSERT INTO categories (type, name_l1, name_l2, icon, sort_order) VALUES ($1, $2, $3, $4, $5)',
+      [item.type, item.name_l1, item.name_l2, item.icon, item.sort_order]
+    );
+  }
+}
 
 // 初始化数据库（使用 Promise 缓存避免并发竞态条件）
 export function initDB(): Promise<Database> {
@@ -28,6 +58,28 @@ export function initDB(): Promise<Database> {
       await database.execute('CREATE INDEX IF NOT EXISTS idx_records_date ON records(date)');
       await database.execute('CREATE INDEX IF NOT EXISTS idx_records_type ON records(type)');
 
+      // 创建分类表
+      await database.execute(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL CHECK(type IN ('expense', 'income')),
+          name_l1 TEXT NOT NULL,
+          name_l2 TEXT NOT NULL,
+          icon TEXT NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          is_deleted INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now', 'localtime')),
+          UNIQUE(type, name_l1, name_l2)
+        )
+      `);
+
+      // 首次启动时写入默认分类（失败不影响 DB 初始化）
+      try {
+        await seedDefaultCategories(database);
+      } catch (err) {
+        console.error('默认分类写入失败，分类列表可能为空:', err);
+      }
+
       db = database;
       return database;
     })();
@@ -49,7 +101,7 @@ export async function addRecord(record: {
     'INSERT INTO records (type, amount, date, category_l1, category_l2, note) VALUES ($1, $2, $3, $4, $5, $6)',
     [record.type, record.amount, record.date, record.categoryL1, record.categoryL2, record.note || '']
   );
-  return { id: result.lastInsertId };
+  return { id: result.lastInsertId as number };
 }
 
 // 获取所有记录

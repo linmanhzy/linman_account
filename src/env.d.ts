@@ -19,3 +19,14 @@ interface MonthStats {
   expense: number
   balance: number
 }
+
+// 分类数据（数据库平铺行结构）
+interface Category {
+  id: number
+  type: 'expense' | 'income'
+  name_l1: string
+  name_l2: string
+  icon: string
+  sort_order: number
+  is_deleted: number
+}

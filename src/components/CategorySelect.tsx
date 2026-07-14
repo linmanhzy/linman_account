@@ -1,6 +1,7 @@
 import React from 'react'
 import { Select, Space } from 'antd'
-import { expenseCategories, incomeCategories, CategoryL1 } from '../data/categories'
+import { useCategoryContext } from '../context/CategoryContext'
+import type { CategoryL1 } from '../data/categories'
 
 interface Props {
   type: 'expense' | 'income'
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const CategorySelect: React.FC<Props> = ({ type, value, onChange }) => {
+  const { expenseCategories, incomeCategories } = useCategoryContext()
   const categories: CategoryL1[] = type === 'expense' ? expenseCategories : incomeCategories
 
   const selectedL1 = categories.find(c => c.name === value?.l1)
