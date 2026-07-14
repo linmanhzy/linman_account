@@ -24,15 +24,23 @@ const RecordList: React.FC = () => {
       filter.month = filterMonth.format('YYYY-MM')
       const result = await getRecords(filter)
       setRecords(result)
+    } catch (err) {
+      console.error('加载记录失败:', err)
+      message.error('加载记录失败，请重试')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async (id: number) => {
-    await deleteRecord(id)
-    message.success('删除成功')
-    loadRecords()
+    try {
+      await deleteRecord(id)
+      message.success('删除成功')
+      loadRecords()
+    } catch (err) {
+      console.error('删除记录失败:', err)
+      message.error('删除失败，请重试')
+    }
   }
 
   const columns = [

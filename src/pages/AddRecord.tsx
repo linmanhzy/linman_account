@@ -40,8 +40,14 @@ const AddRecord: React.FC<Props> = ({ onSuccess }) => {
       if (onSuccess) {
         onSuccess()
       }
-    } catch (err) {
-      // 表单校验失败
+    } catch (err: any) {
+      // 表单校验失败（antd 校验错误对象含 errorFields）
+      if (err?.errorFields) {
+        return
+      }
+      // 其他错误（如数据库异常）
+      console.error('保存记录失败:', err)
+      message.error('保存失败，请重试')
     } finally {
       setLoading(false)
     }

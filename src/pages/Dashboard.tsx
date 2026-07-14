@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Row, Col, Statistic, Tag } from 'antd'
+import { Card, Row, Col, Statistic, Tag, message } from 'antd'
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -14,11 +14,16 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadStats()
-  }, [])
+  }, [currentMonth])
 
   const loadStats = async () => {
-    const result = await getMonthStats(currentMonth)
-    setStats(result)
+    try {
+      const result = await getMonthStats(currentMonth)
+      setStats(result)
+    } catch (err) {
+      console.error('加载统计数据失败:', err)
+      message.error('加载收支数据失败，请重试')
+    }
   }
 
   return (
