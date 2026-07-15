@@ -5,22 +5,25 @@ import {
   PlusCircleOutlined,
   UnorderedListOutlined,
   SettingOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons'
 import { CategoryProvider } from './context/CategoryContext'
 import Dashboard from './pages/Dashboard'
 import AddRecord from './pages/AddRecord'
 import RecordList from './pages/RecordList'
 import CategoryManage from './pages/CategoryManage'
+import SnakeGame from './pages/SnakeGame'
 
 const { Sider, Content } = Layout
 
-type PageKey = 'dashboard' | 'add' | 'list' | 'categories'
+type PageKey = 'dashboard' | 'add' | 'list' | 'categories' | 'snake'
 
 const menuItems = [
   { key: 'dashboard', icon: <HomeOutlined />, label: '收支概览' },
   { key: 'add', icon: <PlusCircleOutlined />, label: '记一笔' },
   { key: 'list', icon: <UnorderedListOutlined />, label: '收支明细' },
   { key: 'categories', icon: <SettingOutlined />, label: '分类管理' },
+  { key: 'snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
 ]
 
 const App: React.FC = () => {
@@ -36,6 +39,8 @@ const App: React.FC = () => {
         return <RecordList />
       case 'categories':
         return <CategoryManage />
+      case 'snake':
+        return <SnakeGame />
     }
   }
 
