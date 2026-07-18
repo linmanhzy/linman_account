@@ -3,6 +3,8 @@ package com.linman.account.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 @Entity
 @Table(name = "category")
@@ -11,17 +13,27 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String name;
 
-    private String type;
+    @Column(length = 20)
+    private String type;                 // income / expense
+
+    @Column(length = 10)
+    private String icon;                 // 仅大类(L1)携带图标
 
     @Column(name = "parent_id")
-    private Long parentId;
+    private Long parentId;               // null = 大类(L1)
 
-    @Column(name = "is_system")
-    private Boolean isSystem = false;
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder = 0;
+
+    @Column(name = "is_system", nullable = false)
+    private boolean system = false;      // 系统预设分类（只读）
 
     @Column(name = "user_id")
-    private Long userId;                   // 为 NULL 表示系统预设分类
+    private Long userId;                 // null = 系统预设；否则为创建者
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 }

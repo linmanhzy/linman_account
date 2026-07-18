@@ -37,3 +37,6 @@ myapp:
     # 启动时会自动创建该默认管理员（若不存在）。生产环境请务必修改密码
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:admin123456}
+  # CORS 允许的前端来源，逗号分隔（生产部署时需改为实际域名）
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000}

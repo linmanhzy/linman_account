@@ -69,3 +69,23 @@ CREATE TABLE IF NOT EXISTS `game_score` (
     PRIMARY KEY (`id`),
     KEY `idx_game_score_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- M2：为 category 表补充图标与排序字段（幂等，可重复执行）
+SET @db = DATABASE();
+SET @has_icon = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'category' AND COLUMN_NAME = 'icon');
+SET @sql_icon = IF(@has_icon = 0, 'ALTER TABLE category ADD COLUMN icon VARCHAR(10) AFTER type', 'SELECT 1');
+PREPARE stmt FROM @sql_icon;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_sort = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'category' AND COLUMN_NAME = 'sort_order');
+SET @sql_sort = IF(@has_sort = 0, 'ALTER TABLE category ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER parent_id', 'SELECT 1');
+PREPARE stmt FROM @sql_sort;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_ca = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'category' AND COLUMN_NAME = 'created_at');
+SET @sql_ca = IF(@has_ca = 0, 'ALTER TABLE category ADD COLUMN created_at DATETIME AFTER user_id', 'SELECT 1');
+PREPARE stmt FROM @sql_ca;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

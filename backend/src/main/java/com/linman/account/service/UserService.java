@@ -2,9 +2,11 @@ package com.linman.account.service;
 
 import com.linman.account.common.BizException;
 import com.linman.account.dto.UserSummaryDto;
+import com.linman.account.entity.Role;
 import com.linman.account.entity.User;
 import com.linman.account.entity.UserStatus;
 import com.linman.account.repository.UserRepository;
+import com.linman.account.security.SecurityHelper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,6 +34,18 @@ public class UserService {
             status = UserStatus.valueOf(statusStr.trim().toUpperCase());
         } catch (Exception e) {
             throw new BizException(400, "非法的状态值，应为 ENABLED 或 DISABLED");
+        }
+        // 不允许管理员禁用自己
+        Long currentUserId = SecurityHelper.getCurrentUserId();
+        if (user.getId().equals(currentUserId) && status == UserStatus.DISABLED) {
+            throw new BizException(400, "不能禁用自己的账户");
+        }
+        // 不允许禁用最后一个启用的管理员
+        if (user.getRole() == Role.ADMIN && status == UserStatus.DISABLED) {
+            long adminCount = userRepository.countByRoleAndStatus(Role.ADMIN, UserStatus.ENABLED);
+            if (adminCount <= 1) {
+                throw new BizException(400, "不能禁用系统中最后一个启用的管理员");
+            }
         }
         user.setStatus(status);
         return toDto(userRepository.save(user));
