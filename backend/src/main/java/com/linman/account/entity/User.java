@@ -18,11 +18,13 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String role = "USER";          // USER / ADMIN
+    private Role role = Role.USER;          // USER / ADMIN
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status = "ENABLED";     // ENABLED / DISABLED
+    private UserStatus status = UserStatus.ENABLED; // ENABLED / DISABLED
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

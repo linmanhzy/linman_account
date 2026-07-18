@@ -27,8 +27,13 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-# 预留给 M1（登录鉴权）使用的 JWT 配置
+# M1 登录鉴权配置
 myapp:
   jwt:
+    # 生产环境请通过环境变量 JWT_SECRET 设置为足够长的随机字符串
     secret: ${JWT_SECRET:change-me-in-production-please-use-long-random-string}
-    expiration-ms: 86400000
+    expiration-ms: 86400000   # token 有效期：24 小时
+  admin:
+    # 启动时会自动创建该默认管理员（若不存在）。生产环境请务必修改密码
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin123456}
