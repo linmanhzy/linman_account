@@ -1,0 +1,23 @@
+myapp:
+  jwt:
+    secret: test-secret-key-for-unit-tests-only-0123456789
+    expiration-ms: 86400000
+
+spring:
+  sql:
+    init:
+      # 测试用 H2 内存库，由 Hibernate 按实体建表，避免重复执行 schema.sql
+      mode: never
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=USER
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+        # 仅测试环境：用引号包裹所有标识符，使保留字 `user` 可作表名
+        globally_quoted_identifiers: true

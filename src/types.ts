@@ -76,3 +76,21 @@ export interface NotificationResponse {
 export interface UnreadCountResponse {
   count: number
 }
+
+// 贪吃蛇游戏成绩
+export interface GameScoreResponse {
+  id: number
+  score: number
+  playedAt: string
+}
+
+export interface GameScoreSummary {
+  bestScore: number
+  recent: GameScoreResponse[]
+}
+
+export interface LeaderboardEntry {
+  userId: number
+  username: string
+  bestScore: number
+}
