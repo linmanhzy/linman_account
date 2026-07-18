@@ -16,4 +16,14 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
 
     List<Record> findByUserIdAndTypeAndRecordDateBetweenOrderByRecordDateDescIdDesc(
             Long userId, String type, LocalDate start, LocalDate end);
+
+    List<Record> findByUserIdAndRecordDateBetweenOrderByRecordDateAscIdAsc(
+            Long userId, LocalDate start, LocalDate end);
+
+    List<Record> findByUserIdAndTypeOrderByRecordDateAscIdAsc(Long userId, String type);
+
+    List<Record> findByUserIdAndTypeAndRecordDateBetweenOrderByRecordDateAscIdAsc(
+            Long userId, String type, LocalDate start, LocalDate end);
+
+    long countByUserId(Long userId);
 }

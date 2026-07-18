@@ -1,5 +1,5 @@
 import client from './client'
-import type { RecordItem, MonthlyStats, RecordType } from '../types'
+import type { RecordItem, MonthlyStats, RecordType, UserRecordQuota } from '../types'
 
 export interface RecordPayload {
   type: RecordType
@@ -32,4 +32,8 @@ export async function deleteRecord(id: number): Promise<void> {
 export async function getMonthlyStats(month: string): Promise<MonthlyStats> {
   const data = await client.get<MonthlyStats>('/api/records/stats/monthly', { params: { month } })
   return data
+}
+
+export async function getRecordQuota(): Promise<UserRecordQuota> {
+  return client.get<UserRecordQuota>('/api/records/quota')
 }

@@ -6,6 +6,7 @@ import {
   UnorderedListOutlined,
   SettingOutlined,
   PlayCircleOutlined,
+  BarChartOutlined,
   MenuOutlined,
   LogoutOutlined,
   UserOutlined,
@@ -21,6 +22,7 @@ const menuItems = [
   { key: '/add', icon: <PlusCircleOutlined />, label: '记一笔' },
   { key: '/list', icon: <UnorderedListOutlined />, label: '收支明细' },
   { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
+  { key: '/report', icon: <BarChartOutlined />, label: '报表' },
   { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
 ]
 

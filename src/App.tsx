@@ -9,6 +9,7 @@ import AddRecord from './pages/AddRecord'
 import RecordList from './pages/RecordList'
 import CategoryManage from './pages/CategoryManage'
 import SnakeGame from './pages/SnakeGame'
+import Report from './pages/Report'
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth()
@@ -41,6 +42,7 @@ const App: React.FC = () => {
             <Route path="list" element={<RecordList />} />
             <Route path="categories" element={<CategoryManage />} />
             <Route path="snake" element={<SnakeGame />} />
+            <Route path="report" element={<Report />} />
           </Route>
         </Routes>
       </AuthProvider>

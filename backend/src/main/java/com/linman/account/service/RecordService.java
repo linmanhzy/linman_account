@@ -1,14 +1,19 @@
 package com.linman.account.service;
 
+import com.alibaba.excel.EasyExcel;
 import com.linman.account.common.BizException;
 import com.linman.account.dto.MonthlyStats;
+import com.linman.account.dto.RecordExportRow;
 import com.linman.account.dto.RecordRequest;
 import com.linman.account.dto.RecordResponse;
+import com.linman.account.dto.UserRecordQuota;
 import com.linman.account.entity.Record;
 import com.linman.account.repository.RecordRepository;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,7 +27,14 @@ public class RecordService {
         this.recordRepository = recordRepository;
     }
 
+    private static final long MAX_RECORDS_PER_USER = 50_000;
+
     public RecordResponse create(Long userId, RecordRequest req) {
+        long count = recordRepository.countByUserId(userId);
+        if (count >= MAX_RECORDS_PER_USER) {
+            throw new BizException(400,
+                    "记录已达上限（" + MAX_RECORDS_PER_USER + " 条），请导出数据后删除旧记录再继续记账。");
+        }
         Record r = new Record();
         r.setUserId(userId);
         apply(r, req);
@@ -110,5 +122,83 @@ public class RecordService {
         d.setNote(r.getNote());
         d.setCreatedAt(r.getCreatedAt());
         return d;
+    }
+
+    // ===== 记录数与配额 =====
+
+    public UserRecordQuota getUserRecordQuota(Long userId) {
+        UserRecordQuota q = new UserRecordQuota();
+        q.setCount(recordRepository.countByUserId(userId));
+        q.setMax(MAX_RECORDS_PER_USER);
+        return q;
+    }
+
+    // ===== 导出账本（仅本人数据） =====
+
+    public byte[] exportBytes(Long userId, String format) {
+        List<Record> records = recordRepository.findByUserIdOrderByRecordDateDescIdDesc(userId);
+        if ("csv".equalsIgnoreCase(format)) {
+            return buildCsv(records);
+        }
+        return buildExcel(records);
+    }
+
+    private byte[] buildExcel(List<Record> records) {
+        List<RecordExportRow> rows = records.stream().map(this::toExportRow).collect(Collectors.toList());
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            EasyExcel.write(out, RecordExportRow.class).sheet("账目").doWrite(rows);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new BizException(500, "生成 Excel 失败：" + e.getMessage());
+        }
+    }
+
+    private byte[] buildCsv(List<Record> records) {
+        // 开头加 UTF-8 BOM，保证 Excel 打开中文不乱码
+        StringBuilder sb = new StringBuilder("\uFEFF");
+        sb.append("类型,金额,日期,一级分类,二级分类,备注,创建时间\n");
+        for (Record r : records) {
+            sb.append(csvField(typeLabel(r.getType()))).append(',')
+                    .append(r.getAmount() == null ? "" : r.getAmount().toPlainString()).append(',')
+                    .append(r.getRecordDate() == null ? "" : r.getRecordDate().toString()).append(',')
+                    .append(csvField(r.getCategoryL1())).append(',')
+                    .append(csvField(r.getCategoryL2())).append(',')
+                    .append(csvField(r.getNote())).append(',')
+                    .append(r.getCreatedAt() == null ? "" : r.getCreatedAt().toString())
+                    .append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String csvField(String v) {
+        if (v == null) {
+            return "";
+        }
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
+    }
+
+    private RecordExportRow toExportRow(Record r) {
+        RecordExportRow row = new RecordExportRow();
+        row.setTypeLabel(typeLabel(r.getType()));
+        row.setAmount(r.getAmount());
+        row.setRecordDate(r.getRecordDate());
+        row.setCategoryL1(r.getCategoryL1());
+        row.setCategoryL2(r.getCategoryL2());
+        row.setNote(r.getNote());
+        row.setCreatedAt(r.getCreatedAt());
+        return row;
+    }
+
+    private String typeLabel(String type) {
+        if ("income".equals(type)) {
+            return "收入";
+        }
+        if ("expense".equals(type)) {
+            return "支出";
+        }
+        return type == null ? "" : type;
     }
 }

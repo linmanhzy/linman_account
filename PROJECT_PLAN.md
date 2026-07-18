@@ -283,7 +283,121 @@ account_book/
 - **服务器从哪来**：是自己买云服务器（阿里云/腾讯云），还是先用自己电脑跑着测试？（影响 M7 部署细节）
 - **管理员怎么产生**：是由系统初始化时自动创建一个管理员账号，还是你手动在数据库里加？（影响 M1）
 - **注册是否开放**：普通用户能否自己注册，还是需要管理员邀请/审核？（影响 M1）
-- **通知形式**：只做「站内信」（App/网页里看），还是也要接短信/邮件？（影响 M4 工作量）
+- **通知形式**：✅ 已确认 — 目前只做「站内信」，短信/邮件推送方案见下方「拓展知识」章节。
 - **游戏成绩是否要排行榜**：贪吃蛇要不要做「所有用户分数排名」？（影响 M5）
 
 > 以上问题不影响现在开始 M0/M1，可在对应模块开发前再定。你随时可以补充想法，我会更新本计划。
+
+---
+
+## 十二、拓展知识 — 通知系统升级方案（短信 / 邮件推送）
+
+> 当前 M4 只实现站内信。以下为后续系统升级时可选的通知扩展方案，供未来参考。
+
+### 方案 A：邮件推送（推荐，成本最低）
+
+**适用场景**：管理员发公告时，同时发送邮件到用户注册邮箱。
+
+**前提条件**：
+- User 表需要新增 `email` 字段（注册时收集邮箱）
+- 需要一个「是否接收邮件通知」的用户偏好开关
+
+**实现要点**：
+```java
+// 1. Spring Boot 邮件依赖（pom.xml）
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-mail</artifactId>
+</dependency>
+
+// 2. application.yml 配置（以 QQ 邮箱为例）
+spring:
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@qq.com}
+    password: ${MAIL_PASSWORD:your-smtp-auth-code}  # 注意：QQ邮箱用授权码，不是登录密码
+
+// 3. 发邮件 Service
+@Service
+public class MailService {
+    @Autowired
+    private JavaMailSender mailSender;
+
+    public void send(String to, String subject, String content) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(content);
+        mailSender.send(message);
+    }
+}
+
+// 4. 在 NotificationService 中异步调用
+// 创建站内信后，异步发送邮件（@Async），不阻塞主流程
+```
+
+**成本**：QQ 邮箱免费，每日 500 封；阿里云企业邮箱免费 50 封/天。
+
+---
+
+### 方案 B：短信推送
+
+**适用场景**：紧急通知（如账户异常登录告警）。
+
+**前提条件**：
+- User 表需要新增 `phone` 字段
+- 需要对接第三方短信服务商
+
+**主流服务商**：
+
+| 服务商 | 单价 | 特点 |
+|------|:--:|------|
+| **阿里云短信** | ~0.045 元/条 | 稳定，与阿里云生态集成好 |
+| **腾讯云短信** | ~0.045 元/条 | 与微信生态集成方便 |
+| **极光推送（JPush）** | 含 App 推送 | 一套 SDK 同时支持 Push + 短信 |
+
+**实现要点**（以阿里云为例）：
+```java
+// 1. pom.xml 引入阿里云 SDK
+<dependency>
+    <groupId>com.aliyun</groupId>
+    <artifactId>dysmsapi20170525</artifactId>
+    <version>2.0.24</version>
+</dependency>
+
+// 2. 封装短信 Service
+@Service
+public class SmsService {
+    @Value("${aliyun.sms.sign-name}")
+    private String signName;         // 短信签名（需阿里云审核）
+    @Value("${aliyun.sms.template-code}")
+    private String templateCode;     // 短信模板（需阿里云审核）
+
+    public void send(String phone, String content) {
+        // 调用阿里云 API 发送短信
+    }
+}
+```
+
+**成本**：约 0.045 元/条，1000 条约 45 元。需提前充值 + 审核签名/模板（1-2 工作日）。
+
+---
+
+### 通知渠道架构建议（将来升级时参考）
+
+```
+管理员发送通知
+     │
+     ▼
+ NotificationService
+     ├── ① 写入 notification 表（站内信，现有逻辑）✅ 已实现
+     └── ② 异步分发（新增）
+         ├── 用户开启了邮件通知？ → MailService.send()
+         └── 用户绑定了手机号？  → SmsService.send()
+```
+
+**关键设计原则**：
+1. 通知主流程不变，扩展渠道通过 `@Async` 异步执行，不阻塞主线程
+2. 用户可单独开关每种通知渠道（user_settings 表）
+3. 短信/邮件失败不影响站内信的正常发送

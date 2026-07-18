@@ -32,3 +32,23 @@ export interface CategoryL1 {
   icon: string
   children: string[]
 }
+
+// 报表：消费趋势的一个月数据点
+export interface TrendPoint {
+  month: string // YYYY-MM
+  income: number
+  expense: number
+}
+
+// 报表：分类占比
+export interface CategoryProportion {
+  category: string
+  amount: number
+  percentage: number
+}
+
+// 记录条数与上限
+export interface UserRecordQuota {
+  count: number
+  max: number
+}

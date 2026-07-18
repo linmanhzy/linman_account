@@ -7,9 +7,13 @@ import com.linman.account.dto.RecordResponse;
 import com.linman.account.security.SecurityHelper;
 import com.linman.account.service.RecordService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -51,5 +55,20 @@ public class RecordController {
     @GetMapping("/stats/monthly")
     public Result<MonthlyStats> monthlyStats(@RequestParam String month) {
         return Result.ok(recordService.monthlyStats(SecurityHelper.getCurrentUserId(), month));
+    }
+
+    @Operation(summary = "导出当前用户的账本（format=excel 或 csv）")
+    @GetMapping("/export")
+    public void export(@RequestParam(defaultValue = "excel") String format,
+                       HttpServletResponse response) throws IOException {
+        byte[] data = recordService.exportBytes(SecurityHelper.getCurrentUserId(), format);
+        boolean isCsv = "csv".equalsIgnoreCase(format);
+        response.setContentType(isCsv
+                ? "text/csv;charset=utf-8"
+                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=\"linman_records." + (isCsv ? "csv" : "xlsx") + "\"");
+        response.getOutputStream().write(data);
+        response.getOutputStream().flush();
     }
 }

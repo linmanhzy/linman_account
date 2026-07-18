@@ -1,18 +1,29 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Row, Col, Statistic, Tag, message } from 'antd'
+import { Card, Row, Col, Statistic, Tag, message, Alert } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getMonthlyStats } from '../api/records'
+import { getMonthlyStats, getRecordQuota } from '../api/records'
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 })
   const [loading, setLoading] = useState(false)
+  const [quota, setQuota] = useState({ count: 0, max: 50000 })
   const currentMonth = dayjs().format('YYYY-MM')
 
   useEffect(() => {
     loadStats()
+    loadQuota()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth])
+
+  const loadQuota = async () => {
+    try {
+      const q = await getRecordQuota()
+      setQuota(q)
+    } catch {
+      // 配额加载失败不影响主流程
+    }
+  }
 
   const loadStats = async () => {
     setLoading(true)
@@ -78,6 +89,25 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {quota.count >= quota.max * 0.8 && quota.count < quota.max && (
+        <Alert
+          type="warning"
+          showIcon
+          message="记录即将达到上限"
+          description={`你的记账记录已达 ${quota.count.toLocaleString()} / ${quota.max.toLocaleString()} 条，请及时在「报表 → 导出账本」中导出数据，避免影响后续记账。`}
+          style={{ marginTop: 16 }}
+        />
+      )}
+      {quota.count >= quota.max && (
+        <Alert
+          type="error"
+          showIcon
+          message="记录已达上限"
+          description={`你已有 ${quota.count.toLocaleString()} 条记录（上限 ${quota.max.toLocaleString()} 条），无法再新增。请导出数据后删除旧记录再继续记账。`}
+          style={{ marginTop: 16 }}
+        />
+      )}
 
       <Card style={{ marginTop: 24, borderRadius: 12 }}>
         <p style={{ color: '#999', fontSize: 14, margin: 0 }}>

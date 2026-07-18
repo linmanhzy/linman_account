@@ -16,4 +16,12 @@ public class SecurityHelper {
         }
         return ((CustomUserDetails) auth.getPrincipal()).getUserId();
     }
+
+    public static String getCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {
+            throw new BizException(401, "未登录或登录已过期");
+        }
+        return ((CustomUserDetails) auth.getPrincipal()).getUsername();
+    }
 }
