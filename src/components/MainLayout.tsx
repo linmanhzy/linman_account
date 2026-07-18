@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag } from 'antd'
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -13,6 +13,8 @@ import {
   MessageOutlined,
   BellOutlined,
   SafetyCertificateOutlined,
+  TeamOutlined,
+  SwapOutlined,
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -21,14 +23,30 @@ import { getUnreadCount } from '../api/notifications'
 const { Sider, Header, Content } = Layout
 const { useBreakpoint } = Grid
 
+const userMenuItems = [
+  { key: '/dashboard', icon: <HomeOutlined />, label: '收支概览' },
+  { key: '/add', icon: <PlusCircleOutlined />, label: '记一笔' },
+  { key: '/list', icon: <UnorderedListOutlined />, label: '收支明细' },
+  { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
+  { key: '/report', icon: <BarChartOutlined />, label: '报表' },
+  { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
+]
+
+const adminMenuItems = [
+  { key: '/admin', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/feedback', icon: <MessageOutlined />, label: '反馈管理' },
+]
+
 const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { username, role, logout } = useAuth()
   const screens = useBreakpoint()
   const isMobile = !screens.lg
+  const isAdmin = role === 'ADMIN'
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [adminMode, setAdminMode] = useState(isAdmin)
 
   // 轮询未读通知数
   useEffect(() => {
@@ -42,31 +60,43 @@ const MainLayout: React.FC = () => {
     return () => clearInterval(timer)
   }, [])
 
-  const menuItems = [
-    { key: '/dashboard', icon: <HomeOutlined />, label: '收支概览' },
-    { key: '/add', icon: <PlusCircleOutlined />, label: '记一笔' },
-    { key: '/list', icon: <UnorderedListOutlined />, label: '收支明细' },
-    { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
-    { key: '/report', icon: <BarChartOutlined />, label: '报表' },
-    { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
-    {
-      key: '/notifications',
-      icon: <BellOutlined />,
-      label: (
-        <Badge count={unreadCount} size="small" offset={[8, 0]}>
-          通知中心
-        </Badge>
-      ),
-    },
-    { key: '/feedback', icon: <MessageOutlined />, label: '反馈建议' },
-    ...(role === 'ADMIN'
-      ? [{ key: '/admin', icon: <SafetyCertificateOutlined />, label: '管理后台' }]
-      : []),
-  ]
+  // 管理员默认进入管理模式，切换用户时出现「通知 + 反馈」公共入口
+  const commonItems = isAdmin
+    ? [
+        {
+          key: '/notifications',
+          icon: <BellOutlined />,
+          label: (
+            <Badge count={unreadCount} size="small" offset={[8, 0]}>
+              通知中心
+            </Badge>
+          ),
+        },
+      ]
+    : [
+        {
+          key: '/notifications',
+          icon: <BellOutlined />,
+          label: (
+            <Badge count={unreadCount} size="small" offset={[8, 0]}>
+              通知中心
+            </Badge>
+          ),
+        },
+        { key: '/feedback', icon: <MessageOutlined />, label: '反馈建议' },
+      ]
 
-  // 根据当前路径高亮菜单
+  // 管理员模式：仅显示管理 + 通知入口
+  // 用户模式：显示完整用户菜单 + 通知/反馈
+  const menuItems = isAdmin && adminMode
+    ? [...adminMenuItems, ...commonItems]
+    : isAdmin
+      ? [...userMenuItems, ...commonItems]
+      : [...userMenuItems, ...commonItems]
+
   const selectedKey =
-    menuItems.find((m) => location.pathname.startsWith(m.key))?.key || '/dashboard'
+    menuItems.find((m) => location.pathname.startsWith(m.key))?.key ||
+    (isAdmin && adminMode ? '/admin' : '/dashboard')
 
   const go = (key: string) => {
     navigate(key)
@@ -83,34 +113,75 @@ const MainLayout: React.FC = () => {
     },
   }
 
+  const sidebarBg = isAdmin && adminMode ? '#141414' : '#fff'
+  const sidebarBorder = isAdmin && adminMode ? '1px solid #1f1f1f' : '1px solid #f0f0f0'
+  const brandColor = isAdmin && adminMode ? '#b37feb' : '#1677ff'
+  const menuTheme = isAdmin && adminMode ? 'dark' : 'light'
+
+  const sidebarContent = (
+    <>
+      <div
+        style={{
+          height: 56,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          fontSize: 18,
+          fontWeight: 700,
+          color: brandColor,
+          letterSpacing: 2,
+        }}
+      >
+        {isAdmin && adminMode ? '管理控制台' : '林蛮记账'}
+      </div>
+
+      {isAdmin && (
+        <div
+          style={{
+            padding: '8px 16px 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Tag
+            color={adminMode ? 'purple' : 'blue'}
+            style={{ margin: 0, fontSize: 11, borderRadius: 10 }}
+          >
+            {adminMode ? '管理模式' : '用户模式'}
+          </Tag>
+          <Tooltip title={adminMode ? '切换为普通用户视图' : '切换为管理视图'} placement="right">
+            <Switch
+              size="small"
+              checked={!adminMode}
+              checkedChildren={<SwapOutlined />}
+              unCheckedChildren={<SafetyCertificateOutlined />}
+              onChange={(checked) => setAdminMode(!checked)}
+            />
+          </Tooltip>
+        </div>
+      )}
+
+      <Menu
+        mode="inline"
+        theme={menuTheme as any}
+        selectedKeys={[selectedKey]}
+        items={menuItems}
+        onClick={({ key }) => go(key)}
+        style={{ borderRight: 0, marginTop: 12, background: 'transparent' }}
+      />
+    </>
+  )
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {!isMobile && (
         <Sider
           width={210}
-          style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}
+          style={{ background: sidebarBg, borderRight: sidebarBorder }}
         >
-          <div
-            style={{
-              height: 56,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-              fontWeight: 700,
-              color: '#1677ff',
-              letterSpacing: 2,
-            }}
-          >
-            林蛮记账
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            onClick={({ key }) => go(key)}
-            style={{ borderRight: 0 }}
-          />
+          {sidebarContent}
         </Sider>
       )}
 
@@ -130,10 +201,19 @@ const MainLayout: React.FC = () => {
               <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
             )}
             <span style={{ fontSize: 18, fontWeight: 700, color: '#1677ff' }}>林蛮记账</span>
+            {isAdmin && (
+              <Tag color={adminMode ? 'purple' : 'blue'} style={{ margin: 0, borderRadius: 10 }}>
+                {adminMode ? '管理模式' : '用户模式'}
+              </Tag>
+            )}
           </div>
           <Dropdown menu={userMenu} placement="bottomRight">
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar size="small" icon={<UserOutlined />} style={{ background: '#1677ff' }} />
+              <Avatar
+                size="small"
+                icon={<UserOutlined />}
+                style={{ background: isAdmin && adminMode ? '#722ed1' : '#1677ff' }}
+              />
               <span>{username || '用户'}</span>
             </div>
           </Dropdown>
@@ -145,7 +225,7 @@ const MainLayout: React.FC = () => {
       </Layout>
 
       <Drawer
-        title="林蛮记账"
+        title={isAdmin && adminMode ? '管理控制台' : '林蛮记账'}
         placement="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

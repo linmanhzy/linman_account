@@ -94,3 +94,31 @@ export interface LeaderboardEntry {
   username: string
   bestScore: number
 }
+
+// 用户管理（管理员）
+export interface UserSummary {
+  id: number
+  username: string
+  role: 'ADMIN' | 'USER'
+  status: 'ENABLED' | 'DISABLED'
+  createdAt: string
+}
+
+export interface CreateUserRequest {
+  username: string
+  password: string
+  role: 'USER' | 'ADMIN'
+}
+
+export interface UpdateUserRequest {
+  username?: string
+  role?: string
+}
+
+export interface ResetPasswordRequest {
+  newPassword: string
+}
+
+export interface ChangeStatusRequest {
+  status: string
+}
