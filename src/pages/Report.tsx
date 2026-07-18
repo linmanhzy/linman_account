@@ -50,8 +50,8 @@ const Report: React.FC = () => {
 
   const trendOption = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['收入', '支出'] },
-    grid: { left: 48, right: 24, top: 40, bottom: 40 },
+    legend: { data: ['收入', '支出'], top: 0 },
+    grid: { left: 48, right: 24, top: 60, bottom: 40 },
     xAxis: { type: 'category', boundaryGap: false, data: trend.map((t) => t.month) },
     yAxis: { type: 'value' },
     series: [

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Card, Tabs, Table, Button, Modal, Input, Form, Select, message, Tag,
-  Spin, Empty, Popconfirm, Space, Typography, Switch
+  Spin, Empty, Popconfirm, Space, Typography, Switch, Tooltip
 } from 'antd'
 import {
   SendOutlined, ReloadOutlined, PlusOutlined, EditOutlined,
@@ -149,10 +149,10 @@ function UserManager() {
     }
   }
 
-  // 删除用户（6秒防误触）
+  // 删除用户（4秒防误触）
   const openDeleteConfirm = (user: UserSummary) => {
     setDeleteTarget(user)
-    deleteCD.start()
+    deleteCD.start(4)
   }
 
   const handleDelete = async () => {
@@ -238,20 +238,29 @@ function UserManager() {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (s: string, record: UserSummary) => (
-        <Popconfirm
-          title={s === 'ENABLED' ? '确认禁用该用户？' : '确认启用该用户？'}
-          onConfirm={() => openStatusConfirm(record)}
-          okText="确认"
-          cancelText="取消"
-        >
-          <Switch
-            checked={s === 'ENABLED'}
-            checkedChildren="启用"
-            unCheckedChildren="禁用"
-          />
-        </Popconfirm>
-      ),
+      render: (s: string, record: UserSummary) => {
+        const isDefaultAdmin = record.username === 'admin'
+        return (
+          <Popconfirm
+            title={s === 'ENABLED' ? '确认禁用该用户？' : '确认启用该用户？'}
+            onConfirm={() => openStatusConfirm(record)}
+            okText="确认"
+            cancelText="取消"
+            disabled={isDefaultAdmin && s === 'ENABLED'}
+          >
+            <Tooltip
+              title={isDefaultAdmin && s === 'ENABLED' ? '默认管理员不能被禁用' : undefined}
+            >
+              <Switch
+                checked={s === 'ENABLED'}
+                checkedChildren="启用"
+                unCheckedChildren="禁用"
+                disabled={isDefaultAdmin && s === 'ENABLED'}
+              />
+            </Tooltip>
+          </Popconfirm>
+        )
+      },
     },
     {
       title: '创建时间',

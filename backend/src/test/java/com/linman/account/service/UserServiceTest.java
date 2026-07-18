@@ -196,4 +196,50 @@ class UserServiceTest {
         assertThat(list).extracting("username")
                 .contains("admin", "u1", "u2");
     }
+
+    // ===== changeStatus =====
+
+    @Test
+    void changeStatus_disableNormalUser_success() {
+        User admin = createAdmin();
+        User u = createNormalUser("bob");
+
+        UserSummaryDto dto = userService.changeStatus(u.getId(), "DISABLED", admin.getId());
+        assertThat(dto.getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void changeStatus_disableDefaultAdmin_throws() {
+        User admin = createAdmin();
+        User other = createNormalUser("other");
+
+        assertThatThrownBy(() -> userService.changeStatus(admin.getId(), "DISABLED", other.getId()))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("默认管理员账号不能被禁用");
+    }
+
+    @Test
+    void changeStatus_selfDisable_throws() {
+        User admin = createAdmin();
+
+        assertThatThrownBy(() -> userService.changeStatus(admin.getId(), "DISABLED", admin.getId()))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("不能禁用自己的账户");
+    }
+
+    @Test
+    void changeStatus_lastEnabledAdmin_throws() {
+        User onlyAdmin = new User();
+        onlyAdmin.setUsername("otherAdmin");
+        onlyAdmin.setPasswordHash(passwordEncoder.encode("123456"));
+        onlyAdmin.setRole(Role.ADMIN);
+        onlyAdmin.setStatus(UserStatus.ENABLED);
+        User saved = userRepository.save(onlyAdmin);
+
+        User operator = createNormalUser("operator");
+
+        assertThatThrownBy(() -> userService.changeStatus(saved.getId(), "DISABLED", operator.getId()))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("不能禁用系统中最后一个启用的管理员");
+    }
 }

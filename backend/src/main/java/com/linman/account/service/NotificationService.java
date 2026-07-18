@@ -57,9 +57,10 @@ public class NotificationService {
 
     @Transactional
     public void sendToAll(NotificationRequest req) {
+        // 无普通用户时静默成功（影响 0 人），不再抛 400，避免「系统尚未有注册用户」时管理员无法发布公告
         List<User> users = userRepository.findByRole(Role.USER);
         if (users.isEmpty()) {
-            throw new BizException(400, "没有可接收通知的用户");
+            return;
         }
         LocalDateTime now = LocalDateTime.now();
         List<Notification> notifications = users.stream().map(u -> {

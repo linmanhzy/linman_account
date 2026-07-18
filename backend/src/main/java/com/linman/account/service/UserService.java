@@ -6,6 +6,7 @@ import com.linman.account.entity.Role;
 import com.linman.account.entity.User;
 import com.linman.account.entity.UserStatus;
 import com.linman.account.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,9 @@ import java.util.stream.Collectors;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${myapp.admin.username:admin}")
+    private String defaultAdminUsername;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
@@ -53,6 +57,10 @@ public class UserService {
         // 不允许管理员禁用自己
         if (user.getId().equals(operatorId) && status == UserStatus.DISABLED) {
             throw new BizException(400, "不能禁用自己的账户");
+        }
+        // 不允许禁用默认管理员，确保系统始终保留一个可登录的管理员
+        if (user.getUsername().equals(defaultAdminUsername) && status == UserStatus.DISABLED) {
+            throw new BizException(400, "默认管理员账号不能被禁用");
         }
         // 不允许禁用最后一个启用的管理员
         if (user.getRole() == Role.ADMIN && status == UserStatus.DISABLED) {

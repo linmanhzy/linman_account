@@ -1,10 +1,27 @@
 import React, { useRef, useState } from 'react'
-import { Card, List, Tag, Spin } from 'antd'
+import { ConfigProvider, theme, Spin } from 'antd'
 import SnakeCanvas from '../components/SnakeCanvas'
 import type { GameState } from '../components/SnakeCanvas'
 import { useAuth } from '../auth/AuthContext'
 import { submitGameScore, getMyGameSummary, getLeaderboard } from '../api/game'
 import type { GameScoreSummary, LeaderboardEntry } from '../types'
+import './SnakeGame.css'
+
+const darkTheme = {
+  algorithm: theme.darkAlgorithm,
+  token: { colorPrimary: '#00D2FF', colorBgElevated: '#1A1A2E' },
+}
+
+const rankClass = (idx: number) =>
+  idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal'
+
+const tipColor: Record<GameState, string> = {
+  idle: '#00D2FF',
+  running: '#00D2FF',
+  paused: '#A0A0B8',
+  gameover: '#FF4D4F',
+  win: '#F59E0B',
+}
 
 const SnakeGame: React.FC = () => {
   const { username } = useAuth()
@@ -77,126 +94,104 @@ const SnakeGame: React.FC = () => {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24, fontSize: 22 }}>贪吃蛇</h2>
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        {/* 左：游戏区 */}
-        <Card
-          style={{ borderRadius: 12, maxWidth: 500 }}
-          styles={{ body: { textAlign: 'center' } }}
-        >
-          <div
-            style={{
-              marginBottom: 12,
-              fontSize: 16,
-              fontWeight: 600,
-              color: gameState === 'gameover' ? '#ff4d4f' : '#333',
-            }}
-          >
-            {getScoreTip()}
-            {isNewRecord && (
-              <Tag color="gold" style={{ marginLeft: 8 }}>
-                🏆 新纪录！
-              </Tag>
-            )}
-          </div>
+    <ConfigProvider theme={darkTheme}>
+      <div className="snake-stage">
+        <div className="snake-header">
+          <h1 className="snake-title">
+            贪吃蛇 <span className="snake-title-accent">ARCADE</span>
+          </h1>
+          <p className="snake-sub">
+            方向键或 WASD 操控，吃豆成长。每一局成绩都会记入你的战绩与全球排行榜。
+          </p>
+        </div>
 
-          <SnakeCanvas
-            onScoreChange={handleScoreChange}
-            onGameStateChange={handleStateChange}
-          />
-
-          <div style={{ marginTop: 16, color: '#999', fontSize: 13, lineHeight: 2 }}>
-            <div>↑↓←→ 或 WASD — 控制方向</div>
-            <div>空格 — 开始 / 暂停 / 继续 &nbsp;|&nbsp; P — 暂停</div>
-          </div>
-        </Card>
-
-        {/* 右：成绩面板 */}
-        <div style={{ flex: 1, minWidth: 280, maxWidth: 360 }}>
-          <Card title="我的成绩" style={{ borderRadius: 12, marginBottom: 24 }}>
-            {loading ? (
-              <Spin />
-            ) : (
-              <>
-                <div style={{ fontSize: 14, color: '#666' }}>历史最高分</div>
-                <div
-                  style={{
-                    fontSize: 32,
-                    fontWeight: 700,
-                    color: '#1677ff',
-                    margin: '4px 0 16px',
-                  }}
-                >
-                  {summary?.bestScore ?? 0}
-                </div>
-                <div style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>最近 5 次</div>
-                {summary && summary.recent.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={summary.recent}
-                    renderItem={(item, idx) => (
-                      <List.Item key={item.id}>
-                        <span style={{ color: '#999', width: 20 }}>{idx + 1}.</span>
-                        <span style={{ fontWeight: 600 }}>{item.score} 分</span>
-                        <span style={{ marginLeft: 'auto', color: '#bbb', fontSize: 12 }}>
-                          {new Date(item.playedAt).toLocaleString('zh-CN', { hour12: false })}
-                        </span>
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <div style={{ color: '#bbb', fontSize: 13 }}>
-                    还没有成绩，快去玩一局吧！
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
-
-          <Card title="🏆 排行榜" style={{ borderRadius: 12 }}>
-            {loading ? (
-              <Spin />
-            ) : leaderboard.length > 0 ? (
-              <List
-                size="small"
-                dataSource={leaderboard}
-                renderItem={(item, idx) => {
-                  const me = !!username && item.username === username
-                  return (
-                    <List.Item
-                      key={item.userId}
-                      style={me ? { background: '#fffbe6', borderRadius: 6 } : undefined}
-                    >
-                      <span
-                        style={{
-                          width: 24,
-                          color: idx < 3 ? '#fa8c16' : '#999',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {idx + 1}
-                      </span>
-                      <span style={{ fontWeight: me ? 700 : 400 }}>
-                        {item.username}
-                        {me ? '（我）' : ''}
-                      </span>
-                      <span style={{ marginLeft: 'auto', fontWeight: 600 }}>
-                        {item.bestScore} 分
-                      </span>
-                    </List.Item>
-                  )
-                }}
-              />
-            ) : (
-              <div style={{ color: '#bbb', fontSize: 13 }}>
-                还没有人上榜，快来抢占榜首！
+        <div className="snake-grid">
+          {/* 左：游戏区（流光霓虹边框） */}
+          <div className="neon-frame">
+            <div className="neon-frame-inner">
+              <div className="score-tip" style={{ color: tipColor[gameState] }}>
+                {getScoreTip()}
+                {isNewRecord && <span className="record-badge">🏆 新纪录！</span>}
               </div>
-            )}
-          </Card>
+
+              <SnakeCanvas
+                onScoreChange={handleScoreChange}
+                onGameStateChange={handleStateChange}
+              />
+
+              <div className="controls-hint">
+                <div>↑ ↓ ← → 或 W A S D — 控制方向</div>
+                <div>空格 — 开始 / 暂停 / 继续 &nbsp;|&nbsp; P — 暂停</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 右：战绩 + 排行榜 */}
+          <div>
+            {/* 我的战绩 */}
+            <section className="glass-panel">
+              <h3 className="panel-title">我的战绩</h3>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: 24 }}>
+                  <Spin />
+                </div>
+              ) : (
+                <>
+                  <div className="label-muted">历史最高分</div>
+                  <div className="score-hero">{summary?.bestScore ?? 0}</div>
+                  <div className="label-muted" style={{ marginBottom: 8 }}>
+                    最近 5 次
+                  </div>
+                  {summary && summary.recent.length > 0 ? (
+                    <div>
+                      {summary.recent.map((item, idx) => (
+                        <div className="recent-item" key={item.id}>
+                          <span className="recent-idx">{idx + 1}</span>
+                          <span className="recent-score">{item.score} 分</span>
+                          <span className="recent-time">
+                            {new Date(item.playedAt).toLocaleString('zh-CN', { hour12: false })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-hint">还没有成绩，快去玩一局吧！</div>
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* 全球排行榜 */}
+            <section className="glass-panel">
+              <h3 className="panel-title">🏆 全球排行榜</h3>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: 24 }}>
+                  <Spin />
+                </div>
+              ) : leaderboard.length > 0 ? (
+                <div>
+                  {leaderboard.map((item, idx) => {
+                    const me = !!username && item.username === username
+                    return (
+                      <div className={`lb-row${me ? ' me' : ''}`} key={item.userId}>
+                        <span className={`lb-rank ${rankClass(idx)}`}>{idx + 1}</span>
+                        <span className={`lb-name${me ? ' me' : ''}`}>
+                          {item.username}
+                          {me ? '（我）' : ''}
+                        </span>
+                        <span className="lb-score">{item.bestScore} 分</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="empty-hint">还没有人上榜，快来抢占榜首！</div>
+              )}
+            </section>
+          </div>
         </div>
       </div>
-    </div>
+    </ConfigProvider>
   )
 }
 

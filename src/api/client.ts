@@ -34,6 +34,12 @@ raw.interceptors.response.use(
     return body?.data
   },
   (error) => {
+    const status = error.response?.status
+    if (status === 401) {
+      tokenStore.clear()
+      localStorage.removeItem('lm_profile')
+      window.location.href = '/login'
+    }
     const msg = error.response?.data?.message || error.message || '网络错误，请确认后端已启动'
     return Promise.reject(new Error(msg))
   }

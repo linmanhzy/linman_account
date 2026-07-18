@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag, ConfigProvider, theme } from 'antd'
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -118,6 +118,20 @@ const MainLayout: React.FC = () => {
   const brandColor = isAdmin && adminMode ? '#b37feb' : '#1677ff'
   const menuTheme = isAdmin && adminMode ? 'dark' : 'light'
 
+  // 管理模式下强制菜单项为浅色，解决黑底黑字对比度不足的问题
+  const adminTheme = {
+    algorithm: theme.darkAlgorithm,
+    components: {
+      Menu: {
+        itemColor: 'rgba(255,255,255,0.85)',
+        itemSelectedColor: '#ffffff',
+        itemHoverColor: '#ffffff',
+        itemSelectedBg: '#1677ff',
+        itemActiveBg: 'rgba(255,255,255,0.15)',
+      },
+    },
+  }
+
   const sidebarContent = (
     <>
       <div
@@ -181,7 +195,11 @@ const MainLayout: React.FC = () => {
           width={210}
           style={{ background: sidebarBg, borderRight: sidebarBorder }}
         >
-          {sidebarContent}
+          {isAdmin && adminMode ? (
+            <ConfigProvider theme={adminTheme}>{sidebarContent}</ConfigProvider>
+          ) : (
+            sidebarContent
+          )}
         </Sider>
       )}
 
@@ -231,13 +249,25 @@ const MainLayout: React.FC = () => {
         onClose={() => setDrawerOpen(false)}
         styles={{ body: { padding: 0 } }}
       >
-        <Menu
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={menuItems}
-          onClick={({ key }) => go(key)}
-          style={{ borderRight: 0 }}
-        />
+        {isAdmin && adminMode ? (
+          <ConfigProvider theme={adminTheme}>
+            <Menu
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              items={menuItems}
+              onClick={({ key }) => go(key)}
+              style={{ borderRight: 0 }}
+            />
+          </ConfigProvider>
+        ) : (
+          <Menu
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            items={menuItems}
+            onClick={({ key }) => go(key)}
+            style={{ borderRight: 0 }}
+          />
+        )}
       </Drawer>
     </Layout>
   )

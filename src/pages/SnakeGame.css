@@ -1,0 +1,292 @@
+/* ===== 贪吃蛇 · 深色霓虹街机风 ===== */
+/* 浅色记账壳中的「街机暗门」：整页深色渐变，与外层浅色内容区形成反差 */
+
+.snake-stage {
+  min-height: calc(100vh - 120px);
+  margin: -24px;
+  padding: 32px 24px 40px;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(0, 210, 255, 0.10), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(139, 92, 246, 0.10), transparent 55%),
+    linear-gradient(160deg, #0F0F1E 0%, #1A1A2E 100%);
+  color: #fff;
+  font-family: 'PingFang SC', -apple-system, 'Microsoft YaHei', sans-serif;
+}
+
+.snake-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.snake-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  margin: 0;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(0, 210, 255, 0.45);
+}
+
+.snake-title-accent {
+  color: #00D2FF;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(90deg, #00D2FF, #8B5CF6);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.snake-sub {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: #A0A0B8;
+  letter-spacing: 0.5px;
+}
+
+/* 左右双栏：左游戏，右战绩+排行榜；窄屏堆叠 */
+.snake-grid {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---- 签名元素：流动霓虹边框（蛇盘绕竞技场） ---- */
+.neon-frame {
+  position: relative;
+  border-radius: 20px;
+  padding: 3px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  max-width: 500px;
+  width: 100%;
+  animation: fade-up 0.6s ease both;
+}
+
+.neon-frame::before {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(
+    from 0deg,
+    #00D2FF,
+    #8B5CF6,
+    #FF4D4F,
+    #00D2FF
+  );
+  animation: spin 6s linear infinite;
+}
+
+.neon-frame-inner {
+  position: relative;
+  z-index: 1;
+  border-radius: 17px;
+  background: linear-gradient(180deg, #14142a, #0F0F1E);
+  padding: 18px;
+}
+
+/* ---- 玻璃拟态面板 ---- */
+.glass-panel {
+  width: 340px;
+  max-width: 100%;
+  border-radius: 16px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(0, 210, 255, 0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  animation: fade-up 0.6s ease both;
+}
+
+.glass-panel + .glass-panel {
+  margin-top: 20px;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #00D2FF, #8B5CF6);
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.6);
+}
+
+.score-tip {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  min-height: 24px;
+  transition: color 0.2s ease;
+}
+
+/* 大分数：等宽数字 + 霓虹辉光 */
+.score-hero {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #00D2FF;
+  text-shadow: 0 0 22px rgba(0, 210, 255, 0.55);
+  margin: 4px 0 16px;
+  line-height: 1.1;
+}
+
+.label-muted {
+  font-size: 13px;
+  color: #A0A0B8;
+  letter-spacing: 0.5px;
+}
+
+.controls-hint {
+  margin-top: 14px;
+  color: #8a8aa3;
+  font-size: 12.5px;
+  line-height: 2;
+  text-align: center;
+}
+
+/* 新纪录弹跳徽标 */
+.record-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F0F1E;
+  background: linear-gradient(90deg, #FFD55E, #F59E0B);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
+  animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 榜单行：hover 上浮 + 左霓虹边 */
+.lb-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.lb-row:hover {
+  transform: translateY(-2px);
+  background: rgba(0, 210, 255, 0.06);
+  border-color: rgba(0, 210, 255, 0.25);
+}
+
+.lb-rank {
+  width: 26px;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-rank.gold { color: #F59E0B; }
+.lb-rank.silver { color: #C9CDD4; }
+.lb-rank.bronze { color: #CD7F32; }
+.lb-rank.normal { color: #6f6f8a; }
+
+.lb-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.lb-name.me {
+  font-weight: 800;
+  color: #fff;
+}
+
+.lb-score {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #00D2FF;
+}
+
+/* 当前用户行：紫色霓虹描边 */
+.lb-row.me {
+  border-color: rgba(139, 92, 246, 0.55);
+  background: rgba(139, 92, 246, 0.12);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.25);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.recent-item:last-child { border-bottom: none; }
+
+.recent-idx {
+  width: 20px;
+  color: #6f6f8a;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-score {
+  font-weight: 700;
+  color: #fff;
+}
+
+.recent-time {
+  margin-left: auto;
+  color: #8a8aa3;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-hint {
+  color: #8a8aa3;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* 动效 */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 无障碍：尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .neon-frame::before,
+  .record-badge,
+  .glass-panel,
+  .neon-frame {
+    animation: none !important;
+  }
+}
+
+/* 窄屏：单列堆叠 */
+@media (max-width: 880px) {
+  .snake-stage { margin: -12px; padding: 24px 12px 32px; }
+  .snake-grid { flex-direction: column; align-items: center; }
+  .glass-panel { width: 100%; max-width: 500px; }
+}
