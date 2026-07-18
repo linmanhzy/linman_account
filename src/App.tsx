@@ -1,88 +1,50 @@
 import React from 'react'
-import { Layout, Menu } from 'antd'
-import {
-  HomeOutlined,
-  PlusCircleOutlined,
-  UnorderedListOutlined,
-  SettingOutlined,
-  PlayCircleOutlined,
-} from '@ant-design/icons'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
 import { CategoryProvider } from './context/CategoryContext'
+import MainLayout from './components/MainLayout'
+import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AddRecord from './pages/AddRecord'
 import RecordList from './pages/RecordList'
 import CategoryManage from './pages/CategoryManage'
 import SnakeGame from './pages/SnakeGame'
 
-const { Sider, Content } = Layout
-
-type PageKey = 'dashboard' | 'add' | 'list' | 'categories' | 'snake'
-
-const menuItems = [
-  { key: 'dashboard', icon: <HomeOutlined />, label: '收支概览' },
-  { key: 'add', icon: <PlusCircleOutlined />, label: '记一笔' },
-  { key: 'list', icon: <UnorderedListOutlined />, label: '收支明细' },
-  { key: 'categories', icon: <SettingOutlined />, label: '分类管理' },
-  { key: 'snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
-]
+const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { token } = useAuth()
+  const location = useLocation()
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+  return <>{children}</>
+}
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = React.useState<PageKey>('dashboard')
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />
-      case 'add':
-        return <AddRecord onSuccess={() => setCurrentPage('list')} />
-      case 'list':
-        return <RecordList />
-      case 'categories':
-        return <CategoryManage />
-      case 'snake':
-        return <SnakeGame />
-    }
-  }
-
   return (
-    <CategoryProvider>
-      <Layout style={{ height: '100vh' }}>
-        <Sider
-          width={200}
-          style={{
-            background: '#fff',
-            borderRight: '1px solid #f0f0f0',
-            paddingTop: 16
-          }}
-        >
-          <div
-            style={{
-              height: 48,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-              fontWeight: 700,
-              color: '#1677ff',
-              marginBottom: 16,
-              letterSpacing: 2
-            }}
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth>
+                <CategoryProvider>
+                  <MainLayout />
+                </CategoryProvider>
+              </RequireAuth>
+            }
           >
-            林蛮记账
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[currentPage]}
-            items={menuItems}
-            onClick={({ key }) => setCurrentPage(key as PageKey)}
-            style={{ borderRight: 0 }}
-          />
-        </Sider>
-        <Content style={{ padding: 24, overflow: 'auto', background: '#f5f5f5' }}>
-          {renderPage()}
-        </Content>
-      </Layout>
-    </CategoryProvider>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="add" element={<AddRecord />} />
+            <Route path="list" element={<RecordList />} />
+            <Route path="categories" element={<CategoryManage />} />
+            <Route path="snake" element={<SnakeGame />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
 

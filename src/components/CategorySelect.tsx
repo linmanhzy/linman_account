@@ -1,7 +1,7 @@
 import React from 'react'
 import { Select, Space } from 'antd'
 import { useCategoryContext } from '../context/CategoryContext'
-import type { CategoryL1 } from '../data/categories'
+import type { CategoryL1 } from '../types'
 
 interface Props {
   type: 'expense' | 'income'

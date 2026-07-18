@@ -1,28 +1,33 @@
 import React, { useEffect, useState } from 'react'
 import { Card, Row, Col, Statistic, Tag, message } from 'antd'
-import {
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  WalletOutlined
-} from '@ant-design/icons'
+import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getMonthStats } from '../data/db'
+import { getMonthlyStats } from '../api/records'
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 })
+  const [loading, setLoading] = useState(false)
   const currentMonth = dayjs().format('YYYY-MM')
 
   useEffect(() => {
     loadStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth])
 
   const loadStats = async () => {
+    setLoading(true)
     try {
-      const result = await getMonthStats(currentMonth)
-      setStats(result)
-    } catch (err) {
+      const result = await getMonthlyStats(currentMonth)
+      setStats({
+        income: Number(result.income) || 0,
+        expense: Number(result.expense) || 0,
+        balance: Number(result.balance) || 0,
+      })
+    } catch (err: any) {
       console.error('加载统计数据失败:', err)
-      message.error('加载收支数据失败，请重试')
+      message.error(err?.message || '加载收支数据失败')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -36,8 +41,8 @@ const Dashboard: React.FC = () => {
       </h2>
 
       <Row gutter={[16, 16]}>
-        <Col span={8}>
-          <Card className="stat-card" style={{ borderTop: '3px solid #52c41a' }}>
+        <Col xs={24} md={8}>
+          <Card className="stat-card" style={{ borderTop: '3px solid #52c41a', borderRadius: 12 }} loading={loading}>
             <Statistic
               title="本月收入"
               value={stats.income}
@@ -48,8 +53,8 @@ const Dashboard: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={8}>
-          <Card className="stat-card" style={{ borderTop: '3px solid #ff4d4f' }}>
+        <Col xs={24} md={8}>
+          <Card className="stat-card" style={{ borderTop: '3px solid #ff4d4f', borderRadius: 12 }} loading={loading}>
             <Statistic
               title="本月支出"
               value={stats.expense}
@@ -60,18 +65,15 @@ const Dashboard: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={8}>
-          <Card className="stat-card" style={{ borderTop: '3px solid #1677ff' }}>
+        <Col xs={24} md={8}>
+          <Card className="stat-card" style={{ borderTop: '3px solid #1677ff', borderRadius: 12 }} loading={loading}>
             <Statistic
               title="本月结余"
               value={stats.balance}
               precision={2}
               prefix={<WalletOutlined />}
               suffix="元"
-              valueStyle={{
-                color: stats.balance >= 0 ? '#1677ff' : '#ff4d4f',
-                fontSize: 28
-              }}
+              valueStyle={{ color: stats.balance >= 0 ? '#1677ff' : '#ff4d4f', fontSize: 28 }}
             />
           </Card>
         </Col>

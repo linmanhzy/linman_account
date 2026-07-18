@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Card, Table, Tag, Segmented, DatePicker, Popconfirm, Button, message } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getRecords, deleteRecord } from '../data/db'
+import { getRecords, deleteRecord } from '../api/records'
+import type { RecordItem } from '../types'
 
 const RecordList: React.FC = () => {
   const [records, setRecords] = useState<RecordItem[]>([])
@@ -12,21 +13,20 @@ const RecordList: React.FC = () => {
 
   useEffect(() => {
     loadRecords()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterType, filterMonth])
 
   const loadRecords = async () => {
     setLoading(true)
     try {
-      const filter: { type?: string; month?: string } = {}
-      if (filterType !== 'all') {
-        filter.type = filterType
-      }
-      filter.month = filterMonth.format('YYYY-MM')
-      const result = await getRecords(filter)
+      const params: { type?: string; month?: string } = {}
+      if (filterType !== 'all') params.type = filterType
+      params.month = filterMonth.format('YYYY-MM')
+      const result = await getRecords(params)
       setRecords(result)
-    } catch (err) {
+    } catch (err: any) {
       console.error('加载记录失败:', err)
-      message.error('加载记录失败，请重试')
+      message.error(err?.message || '加载记录失败')
     } finally {
       setLoading(false)
     }
@@ -37,19 +37,19 @@ const RecordList: React.FC = () => {
       await deleteRecord(id)
       message.success('删除成功')
       loadRecords()
-    } catch (err) {
+    } catch (err: any) {
       console.error('删除记录失败:', err)
-      message.error('删除失败，请重试')
+      message.error(err?.message || '删除失败')
     }
   }
 
   const columns = [
     {
       title: '日期',
-      dataIndex: 'date',
-      key: 'date',
+      dataIndex: 'recordDate',
+      key: 'recordDate',
       width: 120,
-      render: (date: string) => <span style={{ fontWeight: 500 }}>{date}</span>
+      render: (date: string) => <span style={{ fontWeight: 500 }}>{date}</span>,
     },
     {
       title: '类型',
@@ -57,19 +57,17 @@ const RecordList: React.FC = () => {
       key: 'type',
       width: 80,
       render: (type: string) =>
-        type === 'expense' ? (
-          <Tag color="error">支出</Tag>
-        ) : (
-          <Tag color="success">收入</Tag>
-        )
+        type === 'expense' ? <Tag color="error">支出</Tag> : <Tag color="success">收入</Tag>,
     },
     {
       title: '分类',
       key: 'category',
       width: 180,
       render: (_: any, record: RecordItem) => (
-        <span>{record.categoryL1} · {record.categoryL2}</span>
-      )
+        <span>
+          {record.categoryL1} · {record.categoryL2}
+        </span>
+      ),
     },
     {
       title: '金额',
@@ -81,12 +79,12 @@ const RecordList: React.FC = () => {
           style={{
             fontWeight: 600,
             fontSize: 16,
-            color: record.type === 'expense' ? '#ff4d4f' : '#52c41a'
+            color: record.type === 'expense' ? '#ff4d4f' : '#52c41a',
           }}
         >
-          {record.type === 'expense' ? '-' : '+'}¥{amount.toFixed(2)}
+          {record.type === 'expense' ? '-' : '+'}¥{Number(amount).toFixed(2)}
         </span>
-      )
+      ),
     },
     {
       title: '备注',
@@ -95,7 +93,7 @@ const RecordList: React.FC = () => {
       ellipsis: true,
       render: (note: string) => (
         <span style={{ color: note ? '#333' : '#ccc' }}>{note || '无'}</span>
-      )
+      ),
     },
     {
       title: '操作',
@@ -112,24 +110,18 @@ const RecordList: React.FC = () => {
             删除
           </Button>
         </Popconfirm>
-      )
-    }
+      ),
+    },
   ]
 
-  // 计算合计
-  const totalIncome = records
-    .filter(r => r.type === 'income')
-    .reduce((sum, r) => sum + r.amount, 0)
-  const totalExpense = records
-    .filter(r => r.type === 'expense')
-    .reduce((sum, r) => sum + r.amount, 0)
+  const totalIncome = records.filter((r) => r.type === 'income').reduce((s, r) => s + Number(r.amount), 0)
+  const totalExpense = records.filter((r) => r.type === 'expense').reduce((s, r) => s + Number(r.amount), 0)
 
   return (
     <div>
       <h2 style={{ marginBottom: 24, fontSize: 22 }}>收支明细</h2>
 
       <Card style={{ borderRadius: 12 }}>
-        {/* 筛选栏 */}
         <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           <Segmented
             value={filterType}
@@ -137,7 +129,7 @@ const RecordList: React.FC = () => {
             options={[
               { label: '全部', value: 'all' },
               { label: '🔴 支出', value: 'expense' },
-              { label: '🟢 收入', value: 'income' }
+              { label: '🟢 收入', value: 'income' },
             ]}
           />
           <DatePicker
@@ -151,8 +143,17 @@ const RecordList: React.FC = () => {
           </Button>
         </div>
 
-        {/* 合计行 */}
-        <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '12px 16px', background: '#fafafa', borderRadius: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 24,
+            marginBottom: 16,
+            padding: '12px 16px',
+            background: '#fafafa',
+            borderRadius: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <span>
             🟢 收入合计：<strong style={{ color: '#52c41a', fontSize: 16 }}>¥{totalIncome.toFixed(2)}</strong>
           </span>
@@ -160,24 +161,20 @@ const RecordList: React.FC = () => {
             🔴 支出合计：<strong style={{ color: '#ff4d4f', fontSize: 16 }}>¥{totalExpense.toFixed(2)}</strong>
           </span>
           <span>
-            📊 结余：<strong style={{ color: totalIncome - totalExpense >= 0 ? '#1677ff' : '#ff4d4f', fontSize: 16 }}>
+            📊 结余：
+            <strong style={{ color: totalIncome - totalExpense >= 0 ? '#1677ff' : '#ff4d4f', fontSize: 16 }}>
               ¥{(totalIncome - totalExpense).toFixed(2)}
             </strong>
           </span>
         </div>
 
-        {/* 记录表格 */}
         <Table
           columns={columns}
           dataSource={records}
           rowKey="id"
           loading={loading}
           locale={{ emptyText: '暂无记录，快去记一笔吧！' }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 条记录`
-          }}
+          pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 条记录` }}
         />
       </Card>
     </div>
