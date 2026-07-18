@@ -1,0 +1,76 @@
+name: CD 部署
+
+# ============================================================
+# 这是 CD（持续交付）工作流 —— 手动的
+# 作用：确认代码无误后，手动触发 → 打包 → 构建 Docker 镜像 →
+#       推送到镜像仓库 → SSH 登录服务器拉取并重启容器。
+# 关键点：on 里只有 workflow_dispatch，意味着它"不会因 push 自动跑"，
+#        必须在 GitHub 网页上点 "Run workflow" 才会执行。
+#        这正是 CI 自动 / CD 手动 的分界线。
+# ============================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "要部署的版本号（如 v1.2.0）"
+        required: true
+        default: "v1.0.0"
+
+# 权限：向 GitHub 容器仓库 ghcr.io 推送镜像需要写 packages 权限
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    name: 构建镜像并部署
+    runs-on: ubuntu-latest
+    steps:
+      - name: 签出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"          # 与 pom.xml 保持一致
+          cache: maven
+
+      - name: 打包后端（生成可执行 jar，跳过测试以加快发布）
+        run: mvn -B package -DskipTests
+        working-directory: backend    # jar 会生成在 backend/target/ 下
+
+      - name: 登录 GitHub 容器仓库 (ghcr.io)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}          # 自动取当前 GitHub 账号，无需手动填
+          password: ${{ secrets.GITHUB_TOKEN }}  # GitHub 自动提供的令牌，无需额外配置
+          # 说明：用 GITHUB_TOKEN 是最省事的方式，不需要你自己去建一个 GHCR_TOKEN。
+          #       若你更想用独立令牌，可改成 secrets.GHCR_TOKEN 并自行配置。
+
+      - name: 构建并推送 Docker 镜像
+        run: |
+          # 镜像名用 github.repository（即 "所有者/仓库名"），避免把用户名写死
+          IMAGE=ghcr.io/${{ github.repository }}/account-book
+          docker build -t "$IMAGE:${{ github.event.inputs.version }}" -f backend/Dockerfile backend/
+          docker tag  "$IMAGE:${{ github.event.inputs.version }}" "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.event.inputs.version }}"
+          docker push "$IMAGE:latest"
+
+      - name: SSH 登录服务器执行部署
+        uses: appleboy/ssh-action@v1
+        with:
+          # 以下三项敏感信息请在仓库 Settings → Secrets and variables → Actions 中配置：
+          host: ${{ secrets.SERVER_HOST }}       # 服务器 IP 或域名
+          username: ${{ secrets.SERVER_USER }}   # 服务器 SSH 登录用户名
+          key: ${{ secrets.SERVER_SSH_KEY }}     # 服务器 SSH 私钥（不是密码）
+          script: |
+            cd /opt/account_book
+            docker pull ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}
+            docker-compose up -d backend
+            # 只清理本项目旧镜像，不影响服务器上其他项目
+            docker images ghcr.io/${{ github.repository }}/account-book \
+              --filter "before=ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}" \
+              -q | xargs -r docker rmi || true

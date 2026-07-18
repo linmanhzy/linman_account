@@ -1,0 +1,61 @@
+name: CI 测试
+
+# ============================================================
+# 这是 CI（持续集成）工作流 —— 自动的
+# 作用：每次 push / 提交 PR 时，自动编译并跑测试，第一时间发现 bug。
+#       它"只检查，不部署"，也不会构建 Docker 镜像。
+# 触发后由 GitHub 提供的临时虚拟机（Runner）执行，跑完即销毁。
+# ============================================================
+
+# 触发条件：任何分支的 push，以及任何 PR，都会自动运行
+on:
+  push:
+    branches: ["**"]          # "**" 表示所有分支
+  pull_request:
+    branches: ["**"]
+
+# 权限：CI 只编译测试，不需要写权限
+permissions:
+  contents: read
+
+jobs:
+  # -------------------- 后端：编译 + 单元测试 --------------------
+  backend-test:
+    name: 后端编译与测试
+    runs-on: ubuntu-latest    # GitHub 免费提供的临时 Linux 虚拟机（这就是 Runner）
+    defaults:
+      run:
+        working-directory: backend   # 后续命令默认在 backend 目录下执行
+    steps:
+      - name: 签出代码
+        uses: actions/checkout@v4     # 把最新代码下载到 Runner 上
+
+      - name: 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"          # 必须与 backend/pom.xml 中的 java.version 一致（当前是 21）
+          cache: maven                # 缓存 Maven 依赖，加速以后的构建
+
+      - name: 编译并运行测试
+        run: mvn -B test              # -B = 批处理(非交互)模式；会执行所有单元测试，
+                                      # 任一测试失败则整个 CI 标红
+
+  # -------------------- 前端：编译检查（不部署） --------------------
+  frontend-build:
+    name: 前端编译检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: 签出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"          # 你的 Node 版本（未知可留空或由 setup-node 用默认）
+          cache: npm
+
+      - name: 安装依赖并构建
+        run: |
+          npm ci          # 依据 package-lock.json 精确安装依赖
+          npm run build   # 执行 tsc && vite build，检查前端能否编译通过
