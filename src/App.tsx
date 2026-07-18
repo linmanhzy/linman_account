@@ -10,12 +10,23 @@ import RecordList from './pages/RecordList'
 import CategoryManage from './pages/CategoryManage'
 import SnakeGame from './pages/SnakeGame'
 import Report from './pages/Report'
+import FeedbackPage from './pages/Feedback'
+import NotificationCenter from './pages/NotificationCenter'
+import AdminPanel from './pages/AdminPanel'
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth()
   const location = useLocation()
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+  return <>{children}</>
+}
+
+const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { role } = useAuth()
+  if (role !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />
   }
   return <>{children}</>
 }
@@ -43,6 +54,16 @@ const App: React.FC = () => {
             <Route path="categories" element={<CategoryManage />} />
             <Route path="snake" element={<SnakeGame />} />
             <Route path="report" element={<Report />} />
+            <Route path="feedback" element={<FeedbackPage />} />
+            <Route path="notifications" element={<NotificationCenter />} />
+            <Route
+              path="admin"
+              element={
+                <RequireAdmin>
+                  <AdminPanel />
+                </RequireAdmin>
+              }
+            />
           </Route>
         </Routes>
       </AuthProvider>

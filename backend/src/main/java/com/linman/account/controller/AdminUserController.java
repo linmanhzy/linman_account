@@ -2,6 +2,7 @@ package com.linman.account.controller;
 
 import com.linman.account.common.Result;
 import com.linman.account.dto.ChangeStatusRequest;
+import com.linman.account.dto.UserSimpleDto;
 import com.linman.account.dto.UserSummaryDto;
 import com.linman.account.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,5 +33,11 @@ public class AdminUserController {
     public Result<UserSummaryDto> changeStatus(@PathVariable Long id,
                                                @Valid @RequestBody ChangeStatusRequest req) {
         return Result.ok(userService.changeStatus(id, req.getStatus()));
+    }
+
+    @Operation(summary = "管理员：获取用户简要列表（id + username），用于通知选择器")
+    @GetMapping("/users/simple")
+    public Result<List<UserSimpleDto>> listSimpleUsers() {
+        return Result.ok(userService.listSimpleUsers());
     }
 }

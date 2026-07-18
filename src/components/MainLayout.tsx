@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge } from 'antd'
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -10,29 +10,59 @@ import {
   MenuOutlined,
   LogoutOutlined,
   UserOutlined,
+  MessageOutlined,
+  BellOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { getUnreadCount } from '../api/notifications'
 
 const { Sider, Header, Content } = Layout
 const { useBreakpoint } = Grid
 
-const menuItems = [
-  { key: '/dashboard', icon: <HomeOutlined />, label: '收支概览' },
-  { key: '/add', icon: <PlusCircleOutlined />, label: '记一笔' },
-  { key: '/list', icon: <UnorderedListOutlined />, label: '收支明细' },
-  { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
-  { key: '/report', icon: <BarChartOutlined />, label: '报表' },
-  { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
-]
-
 const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { username, logout } = useAuth()
+  const { username, role, logout } = useAuth()
   const screens = useBreakpoint()
   const isMobile = !screens.lg
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // 轮询未读通知数
+  useEffect(() => {
+    const fetchUnread = () => {
+      getUnreadCount()
+        .then((r) => setUnreadCount(r.count))
+        .catch(() => {})
+    }
+    fetchUnread()
+    const timer = setInterval(fetchUnread, 30_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const menuItems = [
+    { key: '/dashboard', icon: <HomeOutlined />, label: '收支概览' },
+    { key: '/add', icon: <PlusCircleOutlined />, label: '记一笔' },
+    { key: '/list', icon: <UnorderedListOutlined />, label: '收支明细' },
+    { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
+    { key: '/report', icon: <BarChartOutlined />, label: '报表' },
+    { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
+    {
+      key: '/notifications',
+      icon: <BellOutlined />,
+      label: (
+        <Badge count={unreadCount} size="small" offset={[8, 0]}>
+          通知中心
+        </Badge>
+      ),
+    },
+    { key: '/feedback', icon: <MessageOutlined />, label: '反馈建议' },
+    ...(role === 'ADMIN'
+      ? [{ key: '/admin', icon: <SafetyCertificateOutlined />, label: '管理后台' }]
+      : []),
+  ]
 
   // 根据当前路径高亮菜单
   const selectedKey =

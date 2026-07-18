@@ -52,3 +52,27 @@ export interface UserRecordQuota {
   count: number
   max: number
 }
+
+// 反馈
+export interface FeedbackResponse {
+  id: number
+  content: string
+  status: string // PENDING / REPLIED
+  reply?: string
+  createdAt: string
+  userId: number
+  username: string
+}
+
+// 通知
+export interface NotificationResponse {
+  id: number
+  title: string
+  content: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface UnreadCountResponse {
+  count: number
+}

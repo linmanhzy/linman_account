@@ -1,6 +1,7 @@
 package com.linman.account.service;
 
 import com.linman.account.common.BizException;
+import com.linman.account.dto.UserSimpleDto;
 import com.linman.account.dto.UserSummaryDto;
 import com.linman.account.entity.Role;
 import com.linman.account.entity.User;
@@ -24,6 +25,16 @@ public class UserService {
         return userRepository.findAll().stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    public List<UserSimpleDto> listSimpleUsers() {
+        return userRepository.findAll().stream()
+                .map(u -> {
+                    UserSimpleDto d = new UserSimpleDto();
+                    d.setId(u.getId());
+                    d.setUsername(u.getUsername());
+                    return d;
+                }).collect(Collectors.toList());
     }
 
     public UserSummaryDto changeStatus(Long id, String statusStr) {
