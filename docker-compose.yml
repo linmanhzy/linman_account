@@ -2,9 +2,10 @@
 # 用法：在服务器 /opt/account_book/ 下执行
 #   docker compose --env-file .env up -d
 #
-# 两个容器：
+# 三个容器：
 #   db      — MySQL 8.0（限制 512MB 内存）
 #   backend — Spring Boot 后端（JVM 限制 256MB）
+#   nginx   — Nginx 前端 + 反向代理（端口 80）
 #
 # 注意：MySQL 映射到宿主机 3307 端口，避免和已有 3306 冲突。
 
@@ -59,6 +60,21 @@ services:
       - -XX:MaxMetaspaceSize=64m
       - -jar
       - app.jar
+
+  nginx:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ghcr.io/linmanhzy/linman_account/account-book-frontend:${APP_VERSION:-latest}
+    container_name: account-book-nginx
+    restart: unless-stopped
+    mem_limit: 64m
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - account-book-net
 
 networks:
   account-book-net:

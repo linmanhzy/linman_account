@@ -12,9 +12,9 @@
 传统部署：                    Docker 部署：
                                      ┌─────────────────┐
   ┌──────────┐                      │   Docker 容器     │
-  │ 服务器    │ 装 JDK 17            │  ┌─────────────┐ │
+  │ 服务器    │ 装 JDK 21            │  ┌─────────────┐ │
   │ 装了很多   │ 装 MySQL             │  │ 你的 JAR 包   │ │
-  │ 乱七八糟   │ 装 Redis             │  │ + JDK 17     │ │
+  │ 乱七八糟   │ 装 Redis             │  │ + JDK 21     │ │
   │ 的东西     │ 装 Nginx             │  │ 打包在一起    │ │
   │ 互相干扰   │ 环境冲突...          │  └─────────────┘ │
   └──────────┘                      └─────────────────┘
@@ -24,7 +24,7 @@
 
 | 术语 | 大白话解释 |
 |------|-----------|
-| **镜像（Image）** | 一个只读的模板，相当于"集装箱的图纸"。比如 `eclipse-temurin:17-jre` 镜像 = 装了 JDK 17 的 Linux 系统 |
+| **镜像（Image）** | 一个只读的模板，相当于"集装箱的图纸"。比如 `eclipse-temurin:21-jre` 镜像 = 装了 JDK 21 的 Linux 系统 |
 | **容器（Container）** | 从镜像启动的运行实例，相当于"根据图纸造出来的集装箱"。可以启动、停止、删除、重建 |
 | **Dockerfile** | 一个文本文件，描述怎么造你的镜像。相当于"集装箱的制造说明书" |
 | **docker-compose** | 同时管理多个容器的工具，比如你的系统需要：后端容器 + MySQL 容器 + Nginx 容器 |
@@ -111,7 +111,7 @@
      │ ────────────────────────→ │
      │                           │  ② CI Workflow 自动触发
      │                           │     ├─ 拉取代码
-     │                           │     ├─ 安装 JDK 17
+     │                           │     ├─ 安装 JDK 21
      │                           │     ├─ mvn compile（编译）
      │                           │     └─ mvn test（跑测试）
      │                           │
@@ -184,7 +184,7 @@ git push origin snake-eat
 # 任何分支 push 都自动触发
 
 1. 签出代码       → 把最新代码下载到 GitHub 的虚拟机里
-2. 设置 JDK 17    → 装上 Java 17 环境
+2. 设置 JDK 21    → 装上 Java 17 环境
 3. Maven 编译     → 运行 mvn compile，检查代码能不能编译通过
 4. 跑测试         → 运行 mvn test，检查有没有 bug
 ```
@@ -232,7 +232,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 设置 JDK 17
+      - name: 设置 JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: "17"
@@ -313,8 +313,8 @@ on: workflow_dispatch → 只有你在网页上手动点"Run workflow"才会跑
 ```dockerfile
 # 后端 Dockerfile 示例（放在 backend/ 目录下）
 
-# FROM：基于哪个基础镜像。JDK 17 的 Linux 系统，别人已经做好了，直接用
-FROM eclipse-temurin:17-jre
+# FROM：基于哪个基础镜像。JDK 21 的 Linux 系统，别人已经做好了，直接用
+FROM eclipse-temurin:21-jre
 
 # WORKDIR：容器里的工作目录，相当于 cd /app
 WORKDIR /app
@@ -329,7 +329,7 @@ EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-**大白话**：这个 Dockerfile 说的是——"拿一个装了 JDK 17 的 Linux，把 app.jar 放进去，启动时运行它。"
+**大白话**：这个 Dockerfile 说的是——"拿一个装了 JDK 21 的 Linux，把 app.jar 放进去，启动时运行它。"
 
 **构建命令**（GitHub Actions 自动执行的）：
 ```bash

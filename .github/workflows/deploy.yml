@@ -41,20 +41,32 @@ jobs:
         run: mvn -B package -DskipTests
         working-directory: backend    # jar 会生成在 backend/target/ 下
 
+      - name: 设置 Node.js（前端构建用）
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: 登录 GitHub 容器仓库 (ghcr.io)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}          # 自动取当前 GitHub 账号，无需手动填
-          password: ${{ secrets.GITHUB_TOKEN }}  # GitHub 自动提供的令牌，无需额外配置
-          # 说明：用 GITHUB_TOKEN 是最省事的方式，不需要你自己去建一个 GHCR_TOKEN。
-          #       若你更想用独立令牌，可改成 secrets.GHCR_TOKEN 并自行配置。
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 构建并推送 Docker 镜像
+      - name: 构建并推送后端 Docker 镜像
         run: |
-          # 镜像名用 github.repository（即 "所有者/仓库名"），避免把用户名写死
           IMAGE=ghcr.io/${{ github.repository }}/account-book
           docker build -t "$IMAGE:${{ github.event.inputs.version }}" -f backend/Dockerfile backend/
+          docker tag  "$IMAGE:${{ github.event.inputs.version }}" "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.event.inputs.version }}"
+          docker push "$IMAGE:latest"
+
+      - name: 构建并推送前端 Docker 镜像
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}/account-book-frontend
+          docker build -t "$IMAGE:${{ github.event.inputs.version }}" -f frontend/Dockerfile frontend/
           docker tag  "$IMAGE:${{ github.event.inputs.version }}" "$IMAGE:latest"
           docker push "$IMAGE:${{ github.event.inputs.version }}"
           docker push "$IMAGE:latest"
@@ -80,14 +92,22 @@ jobs:
             # 更新镜像版本号到 .env，让 compose 拉取正确版本
             sed -i "s/^APP_VERSION=.*/APP_VERSION=${{ github.event.inputs.version }}/" .env
 
-            # 拉取指定版本 + latest 标签镜像
+            # 拉取指定版本 + latest 标签镜像（后端 + 前端）
             docker pull ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}
             docker pull ghcr.io/${{ github.repository }}/account-book:latest
+            docker pull ghcr.io/${{ github.repository }}/account-book-frontend:${{ github.event.inputs.version }}
+            docker pull ghcr.io/${{ github.repository }}/account-book-frontend:latest
 
-            # 重启后端容器（数据库不受影响）
-            docker compose --env-file .env up -d backend
+            # 重启所有新镜像容器（数据库不受影响）
+            docker compose --env-file .env up -d backend nginx
 
-            # 清理本项目旧镜像（保留当前版本和 latest）
+            # 等待服务启动
+            sleep 5
+
+            # 清理本项目旧镜像
             docker images ghcr.io/${{ github.repository }}/account-book \
               --filter "before=ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}" \
+              -q | xargs -r docker rmi || true
+            docker images ghcr.io/${{ github.repository }}/account-book-frontend \
+              --filter "before=ghcr.io/${{ github.repository }}/account-book-frontend:${{ github.event.inputs.version }}" \
               -q | xargs -r docker rmi || true

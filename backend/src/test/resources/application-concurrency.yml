@@ -1,0 +1,5 @@
+# 并发测试专用 profile（@ActiveProfiles("concurrency")）
+# 与默认测试隔离：独立 H2 内存库名。H2 2.x 内存库默认即支持多连接并发，无需 MULTI_THREADED。
+spring:
+  datasource:
+    url: jdbc:h2:mem:conctestdb;DB_CLOSE_DELAY=-1;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=USER

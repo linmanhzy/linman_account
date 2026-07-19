@@ -12,12 +12,15 @@
 3. [开放防火墙端口](#三开放防火墙端口)
 4. [创建目录结构](#四创建目录结构)
 5. [配置环境变量](#五配置环境变量)
-6. [配置 Nginx](#六配置-nginx)
+6. [Nginx 说明](#六nginx-说明)
 7. [上传部署文件](#七上传部署文件)
 8. [首次启动](#八首次启动)
 9. [验证部署](#九验证部署)
 10. [日常运维命令](#十日常运维命令)
 11. [常见问题](#十一常见问题)
+12. [后续升级（CD 部署）](#十二后续升级cd-部署)
+13. [APK 分发（Android）](#十三apk-分发android)
+14. [性能基准](#十四性能基准)
 
 ---
 
@@ -97,14 +100,14 @@ sudo mkdir -p /opt/account_book
 # 进入目录
 cd /opt/account_book
 
-# 创建子目录
-sudo mkdir -p nginx
+# 创建数据库数据目录
 sudo mkdir -p mysql_data
-sudo mkdir -p frontend
 
 # 设置当前用户为目录所有者（避免权限问题）
 sudo chown -R $USER:$USER /opt/account_book
 ```
+
+> **说明**：Nginx 和前端已经打包在 Docker 镜像里，服务器上不需要创建 `nginx/` 或 `frontend/` 目录。
 
 ---
 
@@ -143,8 +146,9 @@ JWT_SECRET=请替换为上面生成的JWT密钥
 ADMIN_PASSWORD=请替换为管理员密码_例如Admin@2026
 
 # 前端允许访问的地址（用逗号分隔）
-# 把「你的服务器IP」替换为实际 IP
-CORS_ORIGINS=http://你的服务器IP
+# Nginx 反代后浏览器发的是同源请求，无需 CORS；
+# 这里配的是外部直接访问后端 8080 的场景（如 Swagger UI、手机 App）
+CORS_ORIGINS=http://你的服务器IP,http://你的服务器IP:8080
 
 # 镜像版本（首次用 latest，后续 CD 部署会自动更新）
 APP_VERSION=latest
@@ -156,7 +160,7 @@ APP_VERSION=latest
 DB_PASSWORD=Linman@2026Secure
 JWT_SECRET=aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW=
 ADMIN_PASSWORD=Admin@2026
-CORS_ORIGINS=http://123.45.67.89
+CORS_ORIGINS=http://123.45.67.89,http://123.45.67.89:8080
 APP_VERSION=latest
 ```
 
@@ -172,61 +176,18 @@ cat /opt/account_book/.env
 
 ---
 
-## 六、配置 Nginx
+## 六、Nginx 说明
 
-Nginx 是一个「门卫/路由器」，负责把网页请求转发给正确的程序。
+Nginx 和前端已经打包在一个 Docker 镜像里（`account-book-frontend`），**无需在服务器上手动配置**。镜像内包含：
 
-### 6.1 创建 Nginx 配置文件
+- 前端 React 构建产物（`dist/`）
+- Nginx 配置文件（`nginx.conf`），已配置好：
+  - 前端路由支持（React Router 回退到 `index.html`）
+  - `/api/` 反向代理到后端 `backend:8080`
+  - Swagger UI 代理
+  - 静态资源 1 年强缓存
 
-```bash
-nano /opt/account_book/nginx/default.conf
-```
-
-粘贴以下完整内容：
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-
-    # 前端静态文件（React 构建后的产物）
-    root /usr/share/nginx/html;
-    index index.html;
-
-    # 前端路由支持（React Router 用）
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 反向代理后端 API（/api 开头的请求转发到后端）
-    location /api/ {
-        proxy_pass http://backend:8080/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Swagger UI（后端接口文档）
-    location /swagger-ui {
-        proxy_pass http://backend:8080/swagger-ui;
-        proxy_set_header Host $host;
-    }
-
-    location /v3/api-docs {
-        proxy_pass http://backend:8080/v3/api-docs;
-        proxy_set_header Host $host;
-    }
-
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-**保存文件**：按 `Ctrl+X` → 按 `Y` → 按 `Enter`
+镜像由 Dockerfile 自动构建，配置在 `frontend/Dockerfile` 和 `frontend/nginx.conf` 中，如需修改可直接编辑这两个文件后重新构建。
 
 ---
 
@@ -493,6 +454,67 @@ docker exec account-book-nginx ls /usr/share/nginx/html
 | `host_ip` | 服务器 IP 地址 |
 | `host_username` | 服务器 SSH 用户名 |
 | `my_siyao` | 服务器 SSH 私钥 |
+
+---
+
+## 十三、APK 分发（Android）
+
+林蛮记账 Android App 已构建为 APK 文件，位于：
+
+```
+frontend/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+```
+
+### 分发方式
+
+| 方式 | 说明 | 适合场景 |
+|------|------|---------|
+| 直接传 APK | 用微信/QQ/网盘发送 APK，对方下载安装 | 少量内测用户 |
+| 放到服务器 | APK 放到服务器上通过 Nginx 提供下载 | 团队内测 |
+| CD 部署 | 将 APK 构建加入 GitHub Actions | 正式发布 |
+
+### 手机安装步骤
+
+1. 将 APK 传到手机上（微信文件传输、网盘等）
+2. 打开 APK 文件，系统会提示「未知来源」
+3. 进入「设置」→「安全」→ 允许「安装未知应用」
+4. 返回文件管理器，再次点击 APK 安装
+5. 安装完成后打开，手动输入服务器地址即可
+
+> **注意**：当前为 Debug 版本，APK 体积约 490MB（包含调试符号），正式发布时可用 Release 版本缩小体积。
+
+---
+
+## 十四、性能基准
+
+以下数据基于本地开发机的并发测试结果，真实服务器性能可能有差异。
+
+### MockMvc 进程内测试（验证数据正确性）
+
+| 场景 | 请求数 | 成功率 | 吞吐量 | 平均耗时 |
+|------|--------|--------|--------|----------|
+| 并发注册 | 100 | 100% | 76.7/s | 125ms |
+| 并发登录 | 100 | 100% | 106.6/s | 88ms |
+| 并发记账 | 200 | 100% | 1282/s | 6ms |
+| 并发报表 | 200 | 100% | 1626/s | 4ms |
+| 并发站内信 | 100 | 100% | 862/s | 9ms |
+
+### Locust 真实 HTTP 渐进式压测
+
+| 虚拟用户 | 总请求 | 失败率 | 吞吐量 | p99 响应 |
+|----------|--------|--------|--------|----------|
+| 20 | 449 | 0% | 15.8/s | 200ms |
+| 50 | 1,164 | 0% | 39.4/s | 140ms |
+| 100 | 2,284 | 0% | 77.0/s | 330ms |
+| 200 | 3,049 | 0% | 101.7/s | 2,600ms |
+| 500 | 5,046 | 0% | 169.9/s | 3,000ms |
+
+### 结论
+
+- **稳定性**：所有测试 0% 失败率，无数据丢失
+- **舒适区**：50~100 人同时操作，响应 < 300ms
+- **瓶颈点**：超过 100 并发后，数据库连接池（默认 10）成为瓶颈，p99 延迟明显上升
+- **优化建议**：生产环境调大 HikariCP 连接池至 20~30，可大幅提升并发能力
 
 ---
 
