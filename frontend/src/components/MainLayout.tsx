@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag, ConfigProvider, theme } from 'antd'
+import React, { useState, useEffect, useRef } from 'react'
+import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag, ConfigProvider, theme, Popover, List, Typography } from 'antd'
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -15,12 +15,17 @@ import {
   SafetyCertificateOutlined,
   TeamOutlined,
   SwapOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { getUnreadCount } from '../api/notifications'
+import { getUnreadCount, getUnreadNotifications, markRead, markAllRead } from '../api/notifications'
 import { isMobileView } from '../utils/platform'
 import MobileTabBar from './MobileTabBar'
+import dayjs from 'dayjs'
+import type { NotificationResponse } from '../types'
+
+const { Text } = Typography
 
 const { Sider, Header, Content } = Layout
 const { useBreakpoint } = Grid
@@ -49,6 +54,9 @@ const MainLayout: React.FC = () => {
   const mobileView = isMobileView()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [unreadList, setUnreadList] = useState<NotificationResponse[]>([])
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellFetching = useRef(false)
   const [adminMode, setAdminMode] = useState(isAdmin)
 
   // 轮询未读通知数（移动端由 MobileProfile 负责红点，这里仅桌面端轮询，避免双份请求）
@@ -63,6 +71,109 @@ const MainLayout: React.FC = () => {
     const timer = setInterval(fetchUnread, 30_000)
     return () => clearInterval(timer)
   }, [mobileView])
+
+  // 打开铃铛弹窗时加载未读列表
+  const fetchUnreadList = async () => {
+    if (bellFetching.current) return
+    bellFetching.current = true
+    try {
+      const data = await getUnreadNotifications()
+      setUnreadList(data)
+    } catch {
+      // ignore
+    } finally {
+      bellFetching.current = false
+    }
+  }
+
+  const handleBellOpen = (visible: boolean) => {
+    setBellOpen(visible)
+    if (visible) {
+      fetchUnreadList()
+    }
+  }
+
+  const handleBellMarkRead = async (id: number) => {
+    try {
+      await markRead(id)
+      setUnreadList((prev) => prev.filter((n) => n.id !== id))
+      setUnreadCount((c) => Math.max(0, c - 1))
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleBellMarkAll = async () => {
+    try {
+      await markAllRead()
+      setUnreadList([])
+      setUnreadCount(0)
+    } catch {
+      // ignore
+    }
+  }
+
+  // 铃铛弹窗内容
+  const bellContent = (
+    <div style={{ width: 320, maxHeight: 360, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text strong>未读通知</Text>
+        {unreadList.length > 0 && (
+          <Button type="link" size="small" onClick={handleBellMarkAll}>
+            全部已读
+          </Button>
+        )}
+      </div>
+      {unreadList.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: '#999' }}>
+          <CheckCircleOutlined style={{ fontSize: 28, marginBottom: 8 }} />
+          <div>暂无未读通知</div>
+        </div>
+      ) : (
+        <List
+          style={{ maxHeight: 300, overflow: 'auto' }}
+          dataSource={unreadList.slice(0, 10)}
+          renderItem={(item) => (
+            <List.Item
+              style={{ padding: '8px 0', cursor: 'pointer' }}
+              onClick={() => handleBellMarkRead(item.id)}
+            >
+              <List.Item.Meta
+                avatar={
+                  <Tag color={
+                    item.type === 'WELCOME' ? 'green' :
+                    item.type === 'DAILY' ? 'blue' :
+                    item.type === 'HOLIDAY' ? 'orange' : 'purple'
+                  } style={{ margin: 0, fontSize: 10, lineHeight: '18px' }}>
+                    {item.type === 'WELCOME' ? '欢迎' :
+                     item.type === 'DAILY' ? '每日' :
+                     item.type === 'HOLIDAY' ? '节日' : '系统'}
+                  </Tag>
+                }
+                title={item.title}
+                description={
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {item.content.length > 40 ? item.content.slice(0, 40) + '...' : item.content}
+                    </Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {dayjs(item.createdAt).format('MM-DD HH:mm')}
+                    </Text>
+                  </div>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      )}
+      <div style={{ textAlign: 'center', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 4 }}>
+        <Button type="link" size="small" onClick={() => { setBellOpen(false); navigate('/notifications') }}>
+          查看全部通知
+        </Button>
+      </div>
+    </div>
+  )
 
   // 管理员默认进入管理模式，切换用户时出现「通知 + 反馈」公共入口
   const commonItems = isAdmin
@@ -242,16 +353,30 @@ const MainLayout: React.FC = () => {
               </Tag>
             )}
           </div>
-          <Dropdown menu={userMenu} placement="bottomRight">
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar
-                size="small"
-                icon={<UserOutlined />}
-                style={{ background: isAdmin && adminMode ? '#722ed1' : '#1677ff' }}
-              />
-              <span>{username || '用户'}</span>
-            </div>
-          </Dropdown>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Popover
+              content={bellContent}
+              trigger="click"
+              open={bellOpen}
+              onOpenChange={handleBellOpen}
+              placement="bottomRight"
+              title={false}
+            >
+              <Badge count={unreadCount} size="small">
+                <BellOutlined style={{ fontSize: 18, cursor: 'pointer', color: '#555' }} />
+              </Badge>
+            </Popover>
+            <Dropdown menu={userMenu} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar
+                  size="small"
+                  icon={<UserOutlined />}
+                  style={{ background: isAdmin && adminMode ? '#722ed1' : '#1677ff' }}
+                />
+                <span>{username || '用户'}</span>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
 
         <Content style={{ padding: isMobile ? 12 : 24, background: '#f5f7fa' }}>

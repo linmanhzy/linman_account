@@ -5,6 +5,10 @@ export async function getNotifications(): Promise<NotificationResponse[]> {
   return client.get<NotificationResponse[]>('/api/notifications')
 }
 
+export async function getUnreadNotifications(): Promise<NotificationResponse[]> {
+  return client.get<NotificationResponse[]>('/api/notifications/unread')
+}
+
 export async function getUnreadCount(): Promise<UnreadCountResponse> {
   return client.get<UnreadCountResponse>('/api/notifications/unread-count')
 }

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `role`         VARCHAR(20)  NOT NULL DEFAULT 'USER',       -- USER / ADMIN
     `status`       VARCHAR(20)  NOT NULL DEFAULT 'ENABLED',    -- ENABLED / DISABLED
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_login_at` DATETIME,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -56,9 +57,26 @@ CREATE TABLE IF NOT EXISTS `notification` (
     `title`        VARCHAR(100) NOT NULL,
     `content`      VARCHAR(1000) NOT NULL,
     `is_read`      TINYINT(1)   NOT NULL DEFAULT 0,
+    `type`         VARCHAR(20)  NOT NULL DEFAULT 'ADMIN',
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_notification_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `scheduled_notification` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `title`          VARCHAR(100) NOT NULL,
+    `content`        VARCHAR(1000) NOT NULL,
+    `frequency`      VARCHAR(20)  NOT NULL DEFAULT 'DAILY',
+    `send_time`      TIME,
+    `send_date`      DATE,
+    `type`           VARCHAR(20)  NOT NULL DEFAULT 'DAILY',
+    `enabled`        TINYINT(1)   NOT NULL DEFAULT 1,
+    `target_user_id` BIGINT,
+    `last_fire_date` DATE,
+    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`     DATETIME,
+    PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `game_score` (
@@ -87,5 +105,19 @@ DEALLOCATE PREPARE stmt;
 SET @has_ca = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'category' AND COLUMN_NAME = 'created_at');
 SET @sql_ca = IF(@has_ca = 0, 'ALTER TABLE category ADD COLUMN created_at DATETIME AFTER user_id', 'SELECT 1');
 PREPARE stmt FROM @sql_ca;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- M6-2: 通知类型字段（兼容旧库）
+SET @has_ntype = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'notification' AND COLUMN_NAME = 'type');
+SET @sql_ntype = IF(@has_ntype = 0, "ALTER TABLE notification ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'ADMIN' AFTER is_read", 'SELECT 1');
+PREPARE stmt FROM @sql_ntype;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- M6-2: 最后登录时间字段（兼容旧库）
+SET @has_ll = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'user' AND COLUMN_NAME = 'last_login_at');
+SET @sql_ll = IF(@has_ll = 0, "ALTER TABLE user ADD COLUMN last_login_at DATETIME AFTER created_at", 'SELECT 1');
+PREPARE stmt FROM @sql_ll;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

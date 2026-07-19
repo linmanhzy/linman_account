@@ -1,5 +1,5 @@
 import client from './client'
-import type { FeedbackResponse, UserSummary, CreateUserRequest, UpdateUserRequest, ResetPasswordRequest } from '../types'
+import type { FeedbackResponse, UserSummary, CreateUserRequest, UpdateUserRequest, ResetPasswordRequest, ScheduledNotification, ScheduledNotificationRequest } from '../types'
 
 // ===== 用户管理 =====
 
@@ -51,4 +51,26 @@ export async function sendNotification(params: {
 
 export async function getAllUsers(): Promise<{ id: number; username: string }[]> {
   return client.get<{ id: number; username: string }[]>('/api/admin/users/simple')
+}
+
+// ===== 定时通知管理 =====
+
+export async function getScheduledNotifications(): Promise<ScheduledNotification[]> {
+  return client.get<ScheduledNotification[]>('/api/admin/scheduled-notifications')
+}
+
+export async function createScheduledNotification(data: ScheduledNotificationRequest): Promise<ScheduledNotification> {
+  return client.post<ScheduledNotification>('/api/admin/scheduled-notifications', data)
+}
+
+export async function updateScheduledNotification(id: number, data: ScheduledNotificationRequest): Promise<ScheduledNotification> {
+  return client.put<ScheduledNotification>(`/api/admin/scheduled-notifications/${id}`, data)
+}
+
+export async function toggleScheduledNotification(id: number): Promise<ScheduledNotification> {
+  return client.put<ScheduledNotification>(`/api/admin/scheduled-notifications/${id}/toggle`)
+}
+
+export async function deleteScheduledNotification(id: number): Promise<void> {
+  return client.delete<void>(`/api/admin/scheduled-notifications/${id}`)
 }

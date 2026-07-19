@@ -31,6 +31,12 @@ public class NotificationController {
         return Result.ok(notificationService.unreadCount(SecurityHelper.getCurrentUserId()));
     }
 
+    @Operation(summary = "获取未读通知列表")
+    @GetMapping("/unread")
+    public Result<List<NotificationResponse>> unread() {
+        return Result.ok(notificationService.unreadNotifications(SecurityHelper.getCurrentUserId()));
+    }
+
     @Operation(summary = "标记某条通知已读")
     @PutMapping("/{id}/read")
     public Result<Void> markRead(@PathVariable Long id) {

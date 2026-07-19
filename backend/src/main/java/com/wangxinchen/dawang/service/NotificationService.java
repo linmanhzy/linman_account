@@ -5,7 +5,9 @@ import com.wangxinchen.dawang.dto.NotificationRequest;
 import com.wangxinchen.dawang.dto.NotificationResponse;
 import com.wangxinchen.dawang.dto.UnreadCountResponse;
 import com.wangxinchen.dawang.entity.Notification;
+import com.wangxinchen.dawang.entity.NotificationType;
 import com.wangxinchen.dawang.entity.Role;
+import com.wangxinchen.dawang.entity.ScheduledNotification;
 import com.wangxinchen.dawang.entity.User;
 import com.wangxinchen.dawang.repository.NotificationRepository;
 import com.wangxinchen.dawang.repository.UserRepository;
@@ -35,6 +37,11 @@ public class NotificationService {
 
     public UnreadCountResponse unreadCount(Long userId) {
         return UnreadCountResponse.of(notificationRepository.countByUserIdAndIsRead(userId, false));
+    }
+
+    public List<NotificationResponse> unreadNotifications(Long userId) {
+        return notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(userId, false)
+                .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional
@@ -69,6 +76,7 @@ public class NotificationService {
             n.setTitle(req.getTitle());
             n.setContent(req.getContent());
             n.setIsRead(false);
+            n.setType(NotificationType.ADMIN);
             n.setCreatedAt(now);
             return n;
         }).collect(Collectors.toList());
@@ -84,8 +92,51 @@ public class NotificationService {
         n.setTitle(req.getTitle());
         n.setContent(req.getContent());
         n.setIsRead(false);
+        n.setType(NotificationType.ADMIN);
         n.setCreatedAt(LocalDateTime.now());
         notificationRepository.save(n);
+    }
+
+    /* ===== 欢迎通知（注册时调用） ===== */
+
+    @Transactional
+    public void createWelcomeNotification(User user) {
+        Notification n = new Notification();
+        n.setUserId(user.getId());
+        n.setTitle("欢迎加入林蛮记账！");
+        n.setContent("感谢注册林蛮记账，开始记录你的每一笔收支吧！如有问题请通过意见反馈联系我们。");
+        n.setIsRead(false);
+        n.setType(NotificationType.WELCOME);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(n);
+    }
+
+    /* ===== 定时群发（调度器调用） ===== */
+
+    @Transactional
+    public void sendScheduledToAll(ScheduledNotification sn) {
+        List<User> users;
+        if (sn.getTargetUserId() != null) {
+            users = userRepository.findById(sn.getTargetUserId())
+                    .stream().toList();
+        } else {
+            users = userRepository.findByRole(Role.USER);
+        }
+        if (users.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        List<Notification> notifications = users.stream().map(u -> {
+            Notification n = new Notification();
+            n.setUserId(u.getId());
+            n.setTitle(sn.getTitle());
+            n.setContent(sn.getContent());
+            n.setIsRead(false);
+            n.setType(sn.getType());
+            n.setCreatedAt(now);
+            return n;
+        }).collect(Collectors.toList());
+        notificationRepository.saveAll(notifications);
     }
 
     private NotificationResponse toDto(Notification n) {
@@ -94,6 +145,7 @@ public class NotificationService {
         d.setTitle(n.getTitle());
         d.setContent(n.getContent());
         d.setIsRead(n.getIsRead());
+        d.setType(n.getType() != null ? n.getType().name() : null);
         d.setCreatedAt(n.getCreatedAt());
         return d;
     }

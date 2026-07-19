@@ -9,5 +9,6 @@ public class NotificationResponse {
     private String title;
     private String content;
     private Boolean isRead;
+    private String type;
     private LocalDateTime createdAt;
 }

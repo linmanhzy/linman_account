@@ -24,6 +24,10 @@ public class Notification {
     @Column(name = "is_read")
     private Boolean isRead = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationType type = NotificationType.ADMIN;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 }

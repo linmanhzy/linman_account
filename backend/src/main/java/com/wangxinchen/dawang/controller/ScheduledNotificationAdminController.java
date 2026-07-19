@@ -1,0 +1,101 @@
+package com.wangxinchen.dawang.controller;
+
+import com.wangxinchen.dawang.common.Result;
+import com.wangxinchen.dawang.dto.ScheduledNotificationRequest;
+import com.wangxinchen.dawang.entity.Frequency;
+import com.wangxinchen.dawang.entity.NotificationType;
+import com.wangxinchen.dawang.entity.ScheduledNotification;
+import com.wangxinchen.dawang.repository.ScheduledNotificationRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/admin/scheduled-notifications")
+@PreAuthorize("hasRole('ADMIN')")
+public class ScheduledNotificationAdminController {
+
+    private final ScheduledNotificationRepository repo;
+
+    public ScheduledNotificationAdminController(ScheduledNotificationRepository repo) {
+        this.repo = repo;
+    }
+
+    /**
+     * 获取所有定时通知配置
+     */
+    @Operation(summary = "列出所有定时通知配置")
+    @GetMapping
+    public Result<List<ScheduledNotification>> list() {
+        return Result.ok(repo.findAll());
+    }
+
+    /**
+     * 创建新的定时通知
+     */
+    @Operation(summary = "创建定时通知")
+    @PostMapping
+    public Result<ScheduledNotification> create(@Valid @RequestBody ScheduledNotificationRequest req) {
+        ScheduledNotification sn = new ScheduledNotification();
+        sn.setTitle(req.getTitle());
+        sn.setContent(req.getContent());
+        sn.setFrequency(req.getFrequency());
+        sn.setSendTime(req.getSendTime());
+        sn.setSendDate(req.getSendDate());
+        sn.setType(req.getType() != null ? req.getType() : NotificationType.DAILY);
+        sn.setEnabled(true);
+        sn.setTargetUserId(req.getTargetUserId());
+        sn.setCreatedAt(LocalDateTime.now());
+        return Result.ok(repo.save(sn));
+    }
+
+    /**
+     * 修改定时通知
+     */
+    @Operation(summary = "修改定时通知")
+    @PutMapping("/{id}")
+    public Result<ScheduledNotification> update(@PathVariable Long id,
+                                                @Valid @RequestBody ScheduledNotificationRequest req) {
+        ScheduledNotification sn = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("定时通知不存在: " + id));
+        sn.setTitle(req.getTitle());
+        sn.setContent(req.getContent());
+        sn.setFrequency(req.getFrequency());
+        sn.setSendTime(req.getSendTime());
+        sn.setSendDate(req.getSendDate());
+        sn.setType(req.getType() != null ? req.getType() : NotificationType.DAILY);
+        sn.setTargetUserId(req.getTargetUserId());
+        sn.setUpdatedAt(LocalDateTime.now());
+        return Result.ok(repo.save(sn));
+    }
+
+    /**
+     * 切换启用/禁用
+     */
+    @Operation(summary = "切换启用/禁用状态")
+    @PutMapping("/{id}/toggle")
+    public Result<ScheduledNotification> toggle(@PathVariable Long id) {
+        ScheduledNotification sn = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("定时通知不存在: " + id));
+        sn.setEnabled(!sn.getEnabled());
+        sn.setUpdatedAt(LocalDateTime.now());
+        return Result.ok(repo.save(sn));
+    }
+
+    /**
+     * 删除定时通知
+     */
+    @Operation(summary = "删除定时通知")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id) {
+        if (!repo.existsById(id)) {
+            throw new RuntimeException("定时通知不存在: " + id);
+        }
+        repo.deleteById(id);
+        return Result.ok();
+    }
+}

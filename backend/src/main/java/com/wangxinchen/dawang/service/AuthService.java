@@ -19,11 +19,14 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final NotificationService notificationService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
+                       NotificationService notificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.notificationService = notificationService;
     }
 
     public AuthResponse register(RegisterRequest req) {
@@ -36,7 +39,9 @@ public class AuthService {
         user.setRole(Role.USER);
         user.setStatus(UserStatus.ENABLED);
         user.setCreatedAt(LocalDateTime.now());
+        user.setLastLoginAt(LocalDateTime.now());
         User saved = userRepository.save(user);
+        notificationService.createWelcomeNotification(saved);
         return buildAuth(saved);
     }
 
@@ -49,6 +54,8 @@ public class AuthService {
         if (user.getStatus() == UserStatus.DISABLED) {
             throw new BizException(403, "该账户已被禁用，请联系管理员");
         }
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
         return buildAuth(user);
     }
 

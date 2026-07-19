@@ -70,7 +70,37 @@ export interface NotificationResponse {
   title: string
   content: string
   isRead: boolean
+  type?: string  // WELCOME / DAILY / HOLIDAY / ADMIN
   createdAt: string
+}
+
+// 定时通知配置（管理员）
+export type NotificationType = 'WELCOME' | 'DAILY' | 'HOLIDAY' | 'ADMIN'
+export type Frequency = 'DAILY' | 'SPECIFIC_DATE'
+
+export interface ScheduledNotification {
+  id: number
+  title: string
+  content: string
+  frequency: Frequency
+  sendTime: string    // HH:mm:ss
+  sendDate: string | null
+  type: NotificationType
+  enabled: boolean
+  targetUserId: number | null
+  lastFireDate: string | null
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface ScheduledNotificationRequest {
+  title: string
+  content: string
+  frequency: Frequency
+  sendTime: string
+  sendDate?: string | null
+  type?: NotificationType
+  targetUserId?: number | null
 }
 
 export interface UnreadCountResponse {

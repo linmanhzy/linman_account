@@ -112,6 +112,10 @@ export default function NotificationCenter() {
                         新
                       </Tag>
                     )}
+                    {item.type === 'WELCOME' && <Tag color="green" style={{ marginRight: 4 }}>欢迎</Tag>}
+                    {item.type === 'DAILY' && <Tag color="blue" style={{ marginRight: 4 }}>每日</Tag>}
+                    {item.type === 'HOLIDAY' && <Tag color="orange" style={{ marginRight: 4 }}>节假日</Tag>}
+                    {item.type === 'ADMIN' && <Tag color="purple" style={{ marginRight: 4 }}>管理员</Tag>}
                     {item.title}
                   </span>
                   <span style={{ fontSize: 12, color: '#999' }}>
