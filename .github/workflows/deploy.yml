@@ -98,8 +98,8 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}/account-book-frontend:${{ github.event.inputs.version }}
             docker pull ghcr.io/${{ github.repository }}/account-book-frontend:latest
 
-            # 重启所有新镜像容器（数据库不受影响）
-            docker compose --env-file .env up -d backend nginx
+            # 重启所有新镜像容器（包括 db，已运行则跳过；确保 backend 的 depends_on: db healthy 不被阻塞）
+            docker compose --env-file .env up -d db backend nginx
 
             # 等待容器健康状态就绪（最多等 120 秒）
             echo "[CD] 等待服务健康就绪..."
