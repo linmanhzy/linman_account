@@ -101,8 +101,22 @@ jobs:
             # 重启所有新镜像容器（数据库不受影响）
             docker compose --env-file .env up -d backend nginx
 
-            # 等待服务启动
-            sleep 5
+            # 等待容器健康状态就绪（最多等 120 秒）
+            echo "[CD] 等待服务健康就绪..."
+            for i in $(seq 1 24); do
+              STATUS=$(docker inspect account-book-backend --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+              if [ "$STATUS" = "healthy" ]; then
+                echo "[CD] 后端已健康就绪"
+                break
+              fi
+              echo "[CD] 等待中... ($i/24) 当前状态: $STATUS"
+              sleep 5
+            done
+            if [ "$STATUS" != "healthy" ]; then
+              echo "[CD] 错误: 后端健康检查超时！查看日志:"
+              docker logs --tail 50 account-book-backend
+              exit 1
+            fi
 
             # 清理本项目旧镜像
             docker images ghcr.io/${{ github.repository }}/account-book \

@@ -60,6 +60,12 @@ services:
       - -XX:MaxMetaspaceSize=64m
       - -jar
       - app.jar
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || curl -f http://localhost:8080/api/records || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   nginx:
     build:
@@ -75,6 +81,12 @@ services:
       - backend
     networks:
       - account-book-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep nginx || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   account-book-net:
