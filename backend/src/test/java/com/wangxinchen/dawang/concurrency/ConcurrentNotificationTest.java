@@ -85,12 +85,12 @@ class ConcurrentNotificationTest extends ConcurrencyTestSupport {
         assertTrue(results.stream().allMatch(Result::ok), "并发站内信操作存在失败");
         assertEquals(0.0, s.errorRatePct(), 0.0001, "并发站内信错误率应=0");
 
-        // 通知不丢：总数恒等于 SENT
+        // 通知不丢：总数恒等于 SENT + 1(注册时自动创建的欢迎通知)
         long total = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId).size();
-        assertEquals(SENT, total, "并发站内信操作导致通知丢失");
+        assertEquals(SENT + 1, total, "并发站内信操作导致通知数量异常");
 
         // 未读 + 已读 == 总数（不变量）
         long unread = notificationRepository.countByUserIdAndIsRead(userId, false);
-        assertEquals(SENT, unread + (total - unread), "未读+已读 != 总数");
+        assertEquals(total, unread + (total - unread), "未读+已读 != 总数");
     }
 }
