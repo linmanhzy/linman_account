@@ -25,8 +25,8 @@ USER appuser
 
 EXPOSE 8080
 
-# 健康检查：每 30 秒 HTTP 检查一次，启动给 60 秒缓冲
+# 健康检查：验证 Java 进程存活（不依赖 HTTP 端点，避免 actuator 缺依赖或 API 需鉴权）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || curl -f http://localhost:8080/api/records || exit 1
+  CMD pgrep -f "app\.jar" || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

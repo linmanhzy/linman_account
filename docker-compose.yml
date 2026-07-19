@@ -64,7 +64,7 @@ services:
       - -jar
       - app.jar
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || curl -f http://localhost:8080/api/records || exit 1"]
+      test: ["CMD-SHELL", "pgrep -f \"app\\.jar\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
