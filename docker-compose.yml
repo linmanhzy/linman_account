@@ -52,12 +52,15 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       CORS_ORIGINS: ${CORS_ORIGINS}
-    # JVM 内存限制：256MB 堆 + 64MB Metaspace，适合 2C2G 小服务器
+    # JVM 内存调整：Metaspace 从 64M 升到 128M（Spring Boot 3 类加载多，64M 不够）
+    # 堆 256M + Metaspace 128M + 线程栈/GC/其他 ~128M ≈ 512M 容器上限
     entrypoint:
       - java
       - -Xmx256m
       - -Xms128m
-      - -XX:MaxMetaspaceSize=64m
+      - -XX:MaxMetaspaceSize=128m
+      - -Xss256k
+      - -XX:+UseContainerSupport
       - -jar
       - app.jar
     healthcheck:
