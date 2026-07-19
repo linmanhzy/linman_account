@@ -1,7 +1,18 @@
 import axios, { type AxiosInstance } from 'axios'
 
 const TOKEN_KEY = 'lm_token'
-export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8080'
+
+// API 地址解析策略：
+// - 显式配置 (.env 中设了 VITE_API_BASE)：用配置值
+// - dev (npm run dev)：默认 http://127.0.0.1:8080，连本机后端
+// - prod (CD 构建)：默认空字符串 = 相对路径，浏览器走当前 origin，
+//   由部署环境的 nginx 反代 /api/ 到后端（避免 CDN/反代域名变更要重新构建）
+//   .env/.env.production 在根 .gitignore 里被排除，所以生产构建拿不到本地开发用的
+//   局域网 IP，必须用相对路径作为兜底。
+const _devDefault = 'http://127.0.0.1:8080'
+const _prodDefault = ''
+export const API_BASE = import.meta.env.VITE_API_BASE
+  || (import.meta.env.DEV ? _devDefault : _prodDefault)
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
