@@ -72,7 +72,7 @@ jobs:
           docker push "$IMAGE:latest"
 
       - name: 同步 compose 文件到服务器
-        uses: appleboy/scp-action@v0
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.host_ip }}
           username: ${{ secrets.host_username }}
