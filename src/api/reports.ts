@@ -24,7 +24,7 @@ export async function exportRecords(format: 'excel' | 'csv'): Promise<void> {
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = format === 'csv' ? 'linman_records.csv' : 'linman_records.xlsx'
+  a.download = format === 'csv' ? '记账大王_records.csv' : '记账大王_records.xlsx'
   document.body.appendChild(a)
   a.click()
   a.remove()

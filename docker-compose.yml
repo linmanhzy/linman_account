@@ -1,0 +1,65 @@
+# 记账大王 · 生产环境编排
+# 用法：在服务器 /opt/account_book/ 下执行
+#   docker compose --env-file .env up -d
+#
+# 两个容器：
+#   db      — MySQL 8.0（限制 512MB 内存）
+#   backend — Spring Boot 后端（JVM 限制 256MB）
+#
+# 注意：MySQL 映射到宿主机 3307 端口，避免和已有 3306 冲突。
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: account-book-db
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: linman_account
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    networks:
+      - account-book-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/linmanhzy/linman_account/account-book:${APP_VERSION:-latest}
+    container_name: account-book-backend
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - account-book-net
+    environment:
+      # 覆盖 application.yml 中的开发默认值
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/linman_account?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    # JVM 内存限制：256MB 堆 + 64MB Metaspace，适合 2C2G 小服务器
+    entrypoint:
+      - java
+      - -Xmx256m
+      - -Xms128m
+      - -XX:MaxMetaspaceSize=64m
+      - -jar
+      - app.jar
+
+networks:
+  account-book-net:
+    driver: bridge

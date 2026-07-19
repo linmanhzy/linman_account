@@ -35,7 +35,7 @@ const Login: React.FC = () => {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -54,7 +54,7 @@ const Login: React.FC = () => {
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={3} style={{ marginBottom: 4, color: '#1677ff' }}>
-            林蛮记账
+            记账大王
           </Title>
           <Text type="secondary">联网记账 · 数据多端同步</Text>
         </div>

@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.linman</groupId>
+    <groupId>com.wangxinchen</groupId>
     <artifactId>account-book-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>account-book-backend</name>
-    <description>林蛮记账后端服务</description>
+    <description>记账大王后端服务</description>
 
     <properties>
         <java.version>21</java.version>

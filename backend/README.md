@@ -1,4 +1,4 @@
-# 林蛮记账 · 后端服务（backend）
+# 记账大王 · 后端服务（backend）
 
 Spring Boot 3.3 + MySQL 8 后端，提供统一 REST API 供网页端和手机 App 调用。
 
@@ -13,7 +13,7 @@ Spring Boot 3.3 + MySQL 8 后端，提供统一 REST API 供网页端和手机 A
 backend/
 ├── pom.xml                      # Maven 依赖与构建配置
 └── src/main/
-    ├── java/com/linman/account/
+    ├── java/com/wangxinchen/dawang/
     │   ├── AccountApplication.java   # 启动类
     │   ├── controller/               # 接收 HTTP 请求（目前有 HealthController）
     │   ├── entity/                   # 实体类（对应数据库表）

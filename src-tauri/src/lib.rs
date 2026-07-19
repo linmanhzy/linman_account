@@ -1,13 +1,16 @@
+// `Manager` 仅在桌面端使用（移动端没有 devtools），按 cfg 守卫避免未使用导入警告
+#[cfg(desktop)]
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_sql::Builder::new().build())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(debug_assertions)]
             {
-                if let Some(window) = app.get_webview_window("main") {
+                // open_devtools 仅桌面端可用，移动端无此 API，必须守卫
+                #[cfg(desktop)]
+                if let Some(window) = _app.get_webview_window("main") {
                     window.open_devtools();
                 }
             }

@@ -59,18 +59,35 @@ jobs:
           docker push "$IMAGE:${{ github.event.inputs.version }}"
           docker push "$IMAGE:latest"
 
+      - name: 同步 compose 文件到服务器
+        uses: appleboy/scp-action@v0
+        with:
+          host: ${{ secrets.host_ip }}
+          username: ${{ secrets.host_username }}
+          key: ${{ secrets.my_siyao }}
+          source: docker-compose.yml
+          target: /opt/account_book/
+
       - name: SSH 登录服务器执行部署
         uses: appleboy/ssh-action@v1
         with:
-          # 以下三项敏感信息请在仓库 Settings → Secrets and variables → Actions 中配置：
-          host: ${{ secrets.SERVER_HOST }}       # 服务器 IP 或域名
-          username: ${{ secrets.SERVER_USER }}   # 服务器 SSH 登录用户名
-          key: ${{ secrets.SERVER_SSH_KEY }}     # 服务器 SSH 私钥（不是密码）
+          host: ${{ secrets.host_ip }}         # 服务器 IP 或域名
+          username: ${{ secrets.host_username }}  # 服务器 SSH 登录用户名
+          key: ${{ secrets.my_siyao }}          # 服务器 SSH 私钥
           script: |
             cd /opt/account_book
+
+            # 更新镜像版本号到 .env，让 compose 拉取正确版本
+            sed -i "s/^APP_VERSION=.*/APP_VERSION=${{ github.event.inputs.version }}/" .env
+
+            # 拉取指定版本 + latest 标签镜像
             docker pull ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}
-            docker-compose up -d backend
-            # 只清理本项目旧镜像，不影响服务器上其他项目
+            docker pull ghcr.io/${{ github.repository }}/account-book:latest
+
+            # 重启后端容器（数据库不受影响）
+            docker compose --env-file .env up -d backend
+
+            # 清理本项目旧镜像（保留当前版本和 latest）
             docker images ghcr.io/${{ github.repository }}/account-book \
               --filter "before=ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}" \
               -q | xargs -r docker rmi || true

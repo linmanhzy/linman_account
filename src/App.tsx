@@ -13,6 +13,7 @@ import Report from './pages/Report'
 import FeedbackPage from './pages/Feedback'
 import NotificationCenter from './pages/NotificationCenter'
 import AdminPanel from './pages/AdminPanel'
+import MobileProfile from './pages/MobileProfile'
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth()
@@ -64,6 +65,7 @@ const App: React.FC = () => {
                 </RequireAdmin>
               }
             />
+            <Route path="profile" element={<MobileProfile />} />
           </Route>
         </Routes>
       </AuthProvider>

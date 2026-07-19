@@ -30,3 +30,74 @@ body {
 .stat-card .ant-card-body {
   padding: 24px;
 }
+
+/* ============ 移动端全局适配（仅 isMobileView 启用） ============ */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* 禁用网页橡皮筋滚动 / 下拉刷新 */
+body {
+  overscroll-behavior-y: none;
+}
+
+/* 移动视图外壳：禁用长按菜单与点击高亮，营造原生感 */
+.mobile-shell {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #f5f7fa;
+}
+
+/* 内容区：底部预留 Tab Bar + 安全区高度，防遮挡 */
+.mobile-content {
+  padding: 12px;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+/* 固定底部 Tab Bar，安全区留白 */
+.mobile-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.mobile-tabbar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 0 6px;
+  cursor: pointer;
+  color: #8a8aa3;
+  font-size: 11px;
+  background: none;
+  border: none;
+  transition: color 0.2s ease;
+}
+
+.mobile-tabbar__item--active {
+  color: #1677ff;
+}
+
+.mobile-tabbar__icon {
+  font-size: 22px;
+  transition: transform 0.2s ease;
+}
+
+.mobile-tabbar__item--active .mobile-tabbar__icon {
+  transform: translateY(-1px) scale(1.08);
+}

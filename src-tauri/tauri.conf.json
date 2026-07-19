@@ -1,8 +1,8 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "林蛮记账",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "记账大王",
   "version": "1.0.0",
-  "identifier": "com.linman.accountbook",
+  "identifier": "com.wangxinchen.dawang",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "林蛮记账",
+        "title": "记账大王",
         "width": 1100,
         "height": 720,
         "minWidth": 900,
@@ -20,12 +20,16 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; font-src 'self' data:; connect-src 'self' http: https:; media-src 'self' data:"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "android": {
+      "autoIncrementVersionCode": true,
+      "minSdkVersion": 24
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

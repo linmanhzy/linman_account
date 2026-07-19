@@ -19,6 +19,8 @@ import {
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { getUnreadCount } from '../api/notifications'
+import { isMobileView } from '../utils/platform'
+import MobileTabBar from './MobileTabBar'
 
 const { Sider, Header, Content } = Layout
 const { useBreakpoint } = Grid
@@ -44,12 +46,14 @@ const MainLayout: React.FC = () => {
   const screens = useBreakpoint()
   const isMobile = !screens.lg
   const isAdmin = role === 'ADMIN'
+  const mobileView = isMobileView()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [adminMode, setAdminMode] = useState(isAdmin)
 
-  // 轮询未读通知数
+  // 轮询未读通知数（移动端由 MobileProfile 负责红点，这里仅桌面端轮询，避免双份请求）
   useEffect(() => {
+    if (mobileView) return
     const fetchUnread = () => {
       getUnreadCount()
         .then((r) => setUnreadCount(r.count))
@@ -58,7 +62,7 @@ const MainLayout: React.FC = () => {
     fetchUnread()
     const timer = setInterval(fetchUnread, 30_000)
     return () => clearInterval(timer)
-  }, [])
+  }, [mobileView])
 
   // 管理员默认进入管理模式，切换用户时出现「通知 + 反馈」公共入口
   const commonItems = isAdmin
@@ -147,7 +151,7 @@ const MainLayout: React.FC = () => {
           letterSpacing: 2,
         }}
       >
-        {isAdmin && adminMode ? '管理控制台' : '林蛮记账'}
+        {isAdmin && adminMode ? '管理控制台' : '记账大王'}
       </div>
 
       {isAdmin && (
@@ -188,6 +192,19 @@ const MainLayout: React.FC = () => {
     </>
   )
 
+  // 移动端视图（Tauri Android 或浏览器 ?mobile=1）：底部 Tab Bar，不渲染桌面 Sider/Drawer
+  const mobile = isMobileView()
+  if (mobile) {
+    return (
+      <div className="mobile-shell">
+        <main className="mobile-content">
+          <Outlet />
+        </main>
+        <MobileTabBar />
+      </div>
+    )
+  }
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {!isMobile && (
@@ -218,7 +235,7 @@ const MainLayout: React.FC = () => {
             {isMobile && (
               <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
             )}
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#1677ff' }}>林蛮记账</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#1677ff' }}>记账大王</span>
             {isAdmin && (
               <Tag color={adminMode ? 'purple' : 'blue'} style={{ margin: 0, borderRadius: 10 }}>
                 {adminMode ? '管理模式' : '用户模式'}
@@ -243,7 +260,7 @@ const MainLayout: React.FC = () => {
       </Layout>
 
       <Drawer
-        title={isAdmin && adminMode ? '管理控制台' : '林蛮记账'}
+        title={isAdmin && adminMode ? '管理控制台' : '记账大王'}
         placement="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

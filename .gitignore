@@ -32,3 +32,15 @@ desktop.ini
 # 日志文件
 *.log
 npm-debug.log*
+backend/test_output.txt
+
+# 环境变量与签名密钥（含后端地址、keystore、Firebase 配置，绝不进 Git）
+.env
+.env.local
+.env.production
+.env.production
+*.keystore
+google-services.json
+*-firebase-adminsdk*.json
+generated-images/
+android_init.log

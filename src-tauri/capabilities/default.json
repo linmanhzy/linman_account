@@ -4,11 +4,6 @@
   "description": "默认权限设置",
   "windows": ["main"],
   "permissions": [
-    "core:default",
-    "sql:default",
-    "sql:allow-load",
-    "sql:allow-execute",
-    "sql:allow-select",
-    "sql:allow-close"
+    "core:default"
   ]
 }

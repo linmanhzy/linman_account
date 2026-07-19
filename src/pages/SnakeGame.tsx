@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react'
 import { ConfigProvider, theme, Spin } from 'antd'
-import SnakeCanvas from '../components/SnakeCanvas'
-import type { GameState } from '../components/SnakeCanvas'
+import SnakeCanvas, { type GameState, type SnakeCanvasHandle } from '../components/SnakeCanvas'
 import { useAuth } from '../auth/AuthContext'
 import { submitGameScore, getMyGameSummary, getLeaderboard } from '../api/game'
 import type { GameScoreSummary, LeaderboardEntry } from '../types'
+import { useSwipe } from '../hooks/useSwipe'
+import { isMobileView } from '../utils/platform'
 import './SnakeGame.css'
 
 const darkTheme = {
@@ -36,6 +37,8 @@ const SnakeGame: React.FC = () => {
   const scoreRef = useRef(0)
   const submittedRef = useRef(false)
   const prevBestRef = useRef(0)
+  const canvasRef = useRef<SnakeCanvasHandle>(null)
+  const isMobile = isMobileView()
 
   const refresh = async () => {
     try {
@@ -78,14 +81,20 @@ const SnakeGame: React.FC = () => {
     }
   }
 
+  // 触屏：滑动转向、点击开始/暂停（移动端）
+  const swipe = useSwipe({
+    onSwipe: (dir) => canvasRef.current?.turn(dir),
+    onTap: () => canvasRef.current?.action(),
+  })
+
   const getScoreTip = (): string => {
     switch (gameState) {
       case 'idle':
-        return '按空格键开始游戏'
+        return isMobile ? '点击屏幕开始游戏' : '按空格键开始游戏'
       case 'running':
         return `当前得分：${score}`
       case 'paused':
-        return '暂停中 — 按空格键继续'
+        return isMobile ? '点击屏幕继续' : '暂停中 — 按空格键继续'
       case 'gameover':
         return `游戏结束！最终得分：${score}`
       case 'win':
@@ -101,27 +110,41 @@ const SnakeGame: React.FC = () => {
             贪吃蛇 <span className="snake-title-accent">ARCADE</span>
           </h1>
           <p className="snake-sub">
-            方向键或 WASD 操控，吃豆成长。每一局成绩都会记入你的战绩与全球排行榜。
+            吃豆成长，每一局成绩都会记入你的战绩与全球排行榜。
           </p>
         </div>
 
         <div className="snake-grid">
           {/* 左：游戏区（流光霓虹边框） */}
           <div className="neon-frame">
-            <div className="neon-frame-inner">
+            <div
+              className="neon-frame-inner"
+              {...swipe}
+              style={{ touchAction: 'none' }}
+            >
               <div className="score-tip" style={{ color: tipColor[gameState] }}>
                 {getScoreTip()}
                 {isNewRecord && <span className="record-badge">🏆 新纪录！</span>}
               </div>
 
               <SnakeCanvas
+                ref={canvasRef}
                 onScoreChange={handleScoreChange}
                 onGameStateChange={handleStateChange}
               />
 
               <div className="controls-hint">
-                <div>↑ ↓ ← → 或 W A S D — 控制方向</div>
-                <div>空格 — 开始 / 暂停 / 继续 &nbsp;|&nbsp; P — 暂停</div>
+                {isMobile ? (
+                  <>
+                    <div>滑动屏幕 — 控制方向</div>
+                    <div>点击屏幕 — 开始 / 暂停 / 继续</div>
+                  </>
+                ) : (
+                  <>
+                    <div>↑ ↓ ← → 或 W A S D — 控制方向</div>
+                    <div>空格 — 开始 / 暂停 / 继续 &nbsp;|&nbsp; P — 暂停</div>
+                  </>
+                )}
               </div>
             </div>
           </div>

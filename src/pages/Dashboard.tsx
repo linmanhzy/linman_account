@@ -3,12 +3,14 @@ import { Card, Row, Col, Statistic, Tag, message, Alert } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { getMonthlyStats, getRecordQuota } from '../api/records'
+import { isMobileView } from '../utils/platform'
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 })
   const [loading, setLoading] = useState(false)
   const [quota, setQuota] = useState({ count: 0, max: 50000 })
   const currentMonth = dayjs().format('YYYY-MM')
+  const mobile = isMobileView()
 
   useEffect(() => {
     loadStats()
@@ -111,7 +113,8 @@ const Dashboard: React.FC = () => {
 
       <Card style={{ marginTop: 24, borderRadius: 12 }}>
         <p style={{ color: '#999', fontSize: 14, margin: 0 }}>
-          💡 提示：点击左侧「记一笔」开始记录你的收支，点击「收支明细」查看所有记录。
+          💡 提示：{mobile ? '点击下方「记一笔」Tab' : '点击左侧「记一笔」'}开始记录你的收支，
+          {mobile ? '点击下方「明细」Tab' : '点击「收支明细」'}查看所有记录。
         </p>
       </Card>
     </div>

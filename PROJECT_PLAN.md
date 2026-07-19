@@ -1,8 +1,8 @@
-# 林蛮记账 · 多用户联网系统 · 项目计划
+# 记账大王 · 多用户联网系统 · 项目计划
 
 > 本文档是项目的「总蓝图」，供后续**分模块开发**时参考。
 > 面向非技术读者，所有技术名词都附带大白话解释；遇到需要你决策的地方会标注「⚠️ 待你确认」。
-> 最后更新：2026-07-18
+> 最后更新：2026-07-19
 
 ---
 
@@ -103,17 +103,23 @@
 | **Axios** | 前端去「问」后端要数据 |
 | **图表库（ECharts）** | 画趋势折线图、占比饼图 |
 
-### 手机 App（独立应用）
+### 手机 App（独立应用，仅 Android，2026-07-18 修订）
 | 技术 | 大白话作用 |
 |------|-----------|
-| **React Native（Expo）** | 用和网页一样的语言做手机 App，安卓/iOS 都能装 |
+| **Tauri 移动端（v2）** | 直接复用现有 React 网页代码当手机 App 的「壳」，仅安卓能装，无需另写一套 |
+| **@tauri-apps/plugin-push** | 原拟用 FCM 发系统通知；**已放弃**（FCM 国内不可用），仅保留应用内「通知中心」站内信 |
+| **@tauri-apps/plugin-updater** | 官方更新插件，安卓可 App 内自更新 |
 
 ### 部署
 | 技术 | 大白话作用 |
 |------|-----------|
 | **Docker** | 把后端和数据库打包成「集装箱」，到哪台服务器都能一样运行 |
-| **docker-compose** | 一条命令同时启动「数据库 + 后端」 |
+| **docker compose** | 一条命令同时启动「MySQL + 后端」，内存限制 MySQL 512MB / JVM 256MB |
+| **GitHub Actions** | 手动触发的 CD 流水线：打包 jar → 构建镜像 → 推送 ghcr.io → 服务器拉取重启 |
+| **ghcr.io** | GitHub 自带的镜像仓库，免费，和代码放一起不用另外注册 |
 | **.env 配置文件** | 把密码、密钥等敏感信息集中放好，不写进代码 |
+
+> 部署基础设施已于 2026-07-19 搭建完成，包括 `docker-compose.yml`、`.github/workflows/deploy.yml`、`.env.production` 模板、`docs/deploy-server-setup.md` 服务器操作手册。服务器端待用户完成前置步骤（安装 Docker、配置 .env）后即可首次部署。
 
 ---
 
@@ -233,16 +239,31 @@ erDiagram
 | **M3** | 报表与导出 | 消费趋势图、类别占比图、导出 Excel | 普通用户 |
 | **M4** | 反馈与通知 | 用户提反馈、管理员发通知、通知中心 | 全部 + 管理员 |
 | **M5** | 贪吃蛇游戏 | 网页内嵌游戏并保存最高分 | 普通用户 |
-| **M6** | 手机 App | 用 React Native 做手机版，功能对齐网页 | 全部 |
-| **M7** | Docker 部署 | 用 docker-compose 创建 MySQL 容器 + 后端镜像，编排并部署到服务器 | 运维 |
+| **M6** | 手机 App | 用 **Tauri 移动端**（复用现有 React 网页代码）做 Android 版，功能对齐网页，仅站内信通知 + App 自更新 | 全部 |
+| **M7** | Docker 部署 | ✅ **基础搭建完成**（见下方 M7 进度）。剩余工作：服务器首次部署、HTTPS 域名配置（可选） | 运维 |
 
 ### 关于「什么时候用 Docker」的重要澄清
 
 - **开发阶段（M0~M6）不使用 Docker**：后端直接连接你电脑上**现有的本地 MySQL**（即你已运行的 3306 容器），在其中新建一个**独立数据库 `linman_account`**。因为库名不同，与你的其它项目数据完全隔离、互不冲突，无需新开容器、也无需现在学 Docker。
-- **部署阶段（M7）才引入 Docker**：功能全部做完后，再用 `docker-compose` 创建专用的 MySQL 容器（可映射到 3307 端口避免与你本地 3306 冲突）和后端镜像，打包部署到服务器。
+- **部署阶段（M7）才引入 Docker**：功能全部做完后，再用 `docker compose` 创建专用的 MySQL 容器（映射到 3307 端口避免冲突）和后端镜像，打包部署到服务器。
 - **开发环境与生产环境一致性**：两者都使用 MySQL 8，版本一致即可避免差异问题。
 
+### M7 当前进度（2026-07-19）
+
+| 完成项 | 说明 |
+|--------|------|
+| ✅ `docker-compose.yml` | MySQL 8（512MB）+ 后端（JVM 256MB），端口 3307/8080，自动健康检查 |
+| ✅ `deploy.yml`（CD 流水线） | 手册触发 → Maven 打包 → Docker 构建 → 推送 ghcr.io → SCP compose 文件 → 服务器拉取重启 |
+| ✅ `.env.production` | 生产环境变量模板（DB_PASSWORD / JWT_SECRET / ADMIN_PASSWORD / CORS_ORIGINS） |
+| ✅ `docs/deploy-server-setup.md` | 小白向服务器操作手册：安装 Docker、开放端口、创建目录、配 .env、首次启动 |
+| ⏳ 服务器首次部署 | 用户需按手册完成：安装 Docker → 配 .env → 上传 compose 文件 → `docker compose up -d` |
+| ⏳ 端到端验证 | 首次部署后浏览器访问 `http://服务器IP:8080/swagger-ui.html` 确认接口可用 |
+
 **建议开发顺序**：M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
+
+> **M6 详细实施计划**（含 Tauri 移动端技术路线、推送方案、Android 打包、维护与 App 更新）已单独写入 **`M6_PLAN.md`**，执行前请先确认其中「§7 需要你提供/确认的清单」。
+
+
 
 > 我们已经完成的「现有项目」包含：记账页面、分类管理、贪吃蛇页面（单机版）。重构时这些界面逻辑会**保留**，只是把「读本地文件」改成「问服务器」。
 
@@ -253,17 +274,26 @@ erDiagram
 ```
 account_book/
 ├── PROJECT_PLAN.md          # 本计划文档
-├── backend/                 # Spring Boot 后端（新增）
+├── M6_PLAN.md               # M6 手机 App 详细实施计划
+├── docker-compose.yml       # 生产环境编排：MySQL + 后端（✅ 已创建）
+├── .env.production          # 服务器环境变量模板（✅ 已创建）
+├── .env.example             # 前端本地开发环境变量示例
+├── backend/                 # Spring Boot 后端
 │   ├── pom.xml              # Maven 依赖配置
-│   ├── Dockerfile           # 后端打包成 Docker 镜像
+│   ├── Dockerfile           # 后端打包成 Docker 镜像（✅ 已创建）
 │   └── src/main/...         # Java 代码（controller/service/entity 等）
-├── web/                     # React 网页前端（由现有 src 改造）
-│   ├── src/api/             # 调用后端接口的封装（替代原 db.ts）
-│   ├── src/pages/           # 现有页面改为消费接口
-│   └── src/admin/           # 管理员后台页面（新增）
-├── mobile/                  # React Native 手机 App（新增）
-├── docker-compose.yml       # 编排 MySQL + 后端（新增）
-└── docs/                    # 部署与分模块说明（新增）
+├── src/                     # React 网页前端
+│   ├── api/                 # 调用后端接口的封装（替代原 db.ts）
+│   ├── pages/               # 各页面组件
+│   ├── components/          # 通用组件
+│   ├── hooks/               # 自定义 hooks
+│   └── utils/               # 工具函数
+├── src-tauri/               # Tauri 桌面壳 + 移动端 (Android，复用网页代码)
+├── docs/                    # 文档目录（✅ 已创建）
+│   └── deploy-server-setup.md  # 服务器部署操作手册
+├── .github/workflows/       # CI/CD 流水线
+│   └── deploy.yml           # CD 部署工作流（✅ 已配置）
+└── package.json             # 前端依赖与脚本
 ```
 
 ---
@@ -280,7 +310,7 @@ account_book/
 
 ## 十一、⚠️ 待你后续确认 / 补充的信息
 
-- **服务器从哪来**：是自己买云服务器（阿里云/腾讯云），还是先用自己电脑跑着测试？（影响 M7 部署细节）
+- **服务器从哪来**：✅ 已确认 — Ubuntu 服务器（2C2G），已有 RAG 项目在运行。部署时 MySQL 映射到 3307 端口、后端用 8080 端口，与现有项目共存不冲突。无域名，直接用 IP 访问。CD 流水线已配置完毕，待服务器安装 Docker 后即可首次部署。
 - **管理员怎么产生**：是由系统初始化时自动创建一个管理员账号，还是你手动在数据库里加？（影响 M1）
 - **注册是否开放**：普通用户能否自己注册，还是需要管理员邀请/审核？（影响 M1）
 - **通知形式**：✅ 已确认 — 目前只做「站内信」，短信/邮件推送方案见下方「拓展知识」章节。

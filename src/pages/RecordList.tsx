@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Table, Tag, Segmented, DatePicker, Popconfirm, Button, message } from 'antd'
+import { Card, Table, Tag, Segmented, DatePicker, Popconfirm, Button, message, List, Empty } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
 import { getRecords, deleteRecord } from '../api/records'
 import type { RecordItem } from '../types'
+import { isMobileView } from '../utils/platform'
 
 const RecordList: React.FC = () => {
+  const mobile = isMobileView()
   const [records, setRecords] = useState<RecordItem[]>([])
   const [filterType, setFilterType] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<Dayjs>(dayjs())
@@ -168,14 +170,84 @@ const RecordList: React.FC = () => {
           </span>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={records}
-          rowKey="id"
-          loading={loading}
-          locale={{ emptyText: '暂无记录，快去记一笔吧！' }}
-          pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 条记录` }}
-        />
+        {mobile ? (
+          <List
+            dataSource={records}
+            loading={loading}
+            locale={{ emptyText: <Empty description="暂无记录，快去记一笔吧！" /> }}
+            renderItem={(r: RecordItem) => (
+              <List.Item key={r.id} style={{ display: 'block', padding: 0, border: 'none' }}>
+                <div
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    marginBottom: 10,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: '#999' }}>{r.recordDate}</span>
+                    <Tag color={r.type === 'expense' ? 'error' : 'success'}>
+                      {r.type === 'expense' ? '支出' : '收入'}
+                    </Tag>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: 15, color: '#1f1f1f' }}>
+                      {r.categoryL1} · {r.categoryL2}
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 17,
+                        color: r.type === 'expense' ? '#ff4d4f' : '#52c41a',
+                      }}
+                    >
+                      {r.type === 'expense' ? '-' : '+'}¥{Number(r.amount).toFixed(2)}
+                    </span>
+                  </div>
+                  {r.note && (
+                    <div style={{ fontSize: 13, color: '#8a8aa3', marginTop: 4 }}>{r.note}</div>
+                  )}
+                  <div style={{ textAlign: 'right', marginTop: 6 }}>
+                    <Popconfirm
+                      title="确定删除这条记录吗？"
+                      onConfirm={() => handleDelete(r.id)}
+                      okText="确定"
+                      cancelText="取消"
+                    >
+                      <Button type="link" danger icon={<DeleteOutlined />} size="small">
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={records}
+            rowKey="id"
+            loading={loading}
+            locale={{ emptyText: '暂无记录，快去记一笔吧！' }}
+            pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 条记录` }}
+          />
+        )}
       </Card>
     </div>
   )
