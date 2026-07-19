@@ -1,5 +1,5 @@
 # 告诉 Docker 构建时忽略这些文件（类似 .gitignore），让镜像更小、构建更快
-target
+# 注意：不能忽略 target/，因为 CD 构建需要 COPY target/*.jar
 .git
 .mvn
 *.iml
