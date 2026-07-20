@@ -304,12 +304,12 @@
 .mobile-shell .neon-frame {
   max-width: 100%;
 }
+.mobile-shell .neon-frame-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 .mobile-shell .glass-panel {
   width: 100%;
   max-width: 500px;
-}
-.mobile-shell canvas {
-  width: 100% !important;
-  height: auto !important;
-  max-width: 400px;
 }

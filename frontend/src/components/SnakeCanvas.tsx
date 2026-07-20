@@ -431,33 +431,48 @@ const SnakeCanvas = forwardRef<SnakeCanvasHandle, Props>(
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
-      // 高分屏适配：canvas 内部分辨率按 devicePixelRatio 放大，CSS 尺寸不变
-      // 抽成函数，在旋转屏 / 折叠屏 / 系统缩放变化时重新适配，避免画面模糊或错位
-      const setupHiDPI = () => {
+      // 响应式适配：画布的「显示尺寸」完全交给 CSS（width:100% / max-width:400 / aspect-ratio:1），
+      // 这里根据「实际渲染像素尺寸 × devicePixelRatio」重设内部分辨率，并把 0~CANVAS_SIZE 的
+      // 逻辑坐标系等比映射到真实像素，保证任意尺寸下都正方、清晰、不错位。
+      let resizeRaf = 0
+      const syncCanvas = () => {
         const dpr = window.devicePixelRatio || 1
         dprRef.current = dpr
-        canvas.width = CANVAS_SIZE * dpr
-        canvas.height = CANVAS_SIZE * dpr
-        canvas.style.width = `${CANVAS_SIZE}px`
-        canvas.style.height = `${CANVAS_SIZE}px`
-        // 设置 canvas.width/height 会重置变换矩阵，需先归位再按 dpr 缩放
+        const cssW = canvas.clientWidth
+        const cssH = canvas.clientHeight || cssW
+        if (!cssW) return
+        canvas.width = Math.round(cssW * dpr)
+        canvas.height = Math.round(cssH * dpr)
+        // 设置 canvas.width/height 会重置变换矩阵，需先归位再按逻辑尺寸等比缩放
         ctx.setTransform(1, 0, 0, 1, 0, 0)
-        ctx.scale(dpr, dpr)
+        ctx.scale(canvas.width / CANVAS_SIZE, canvas.height / CANVAS_SIZE)
+      }
+      const scheduleSync = () => {
+        if (resizeRaf) cancelAnimationFrame(resizeRaf)
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0
+          syncCanvas()
+          draw()
+        })
       }
 
-      setupHiDPI()
+      syncCanvas()
 
       window.addEventListener('keydown', handleKeyDown)
-      // 移动端 DPR 会随旋转屏 / 系统字体缩放变化，需重新适配
-      window.addEventListener('resize', setupHiDPI)
-      window.visualViewport?.addEventListener('resize', setupHiDPI)
+      // 旋转屏 / 折叠屏 / 系统字体缩放 / 容器宽度变化 都需要重新适配
+      window.addEventListener('resize', scheduleSync)
+      window.visualViewport?.addEventListener('resize', scheduleSync)
+      const ro = new ResizeObserver(scheduleSync)
+      ro.observe(canvas)
       lastTickRef.current = performance.now()
       rafIdRef.current = requestAnimationFrame(gameLoop)
 
       return () => {
         window.removeEventListener('keydown', handleKeyDown)
-        window.removeEventListener('resize', setupHiDPI)
-        window.visualViewport?.removeEventListener('resize', setupHiDPI)
+        window.removeEventListener('resize', scheduleSync)
+        window.visualViewport?.removeEventListener('resize', scheduleSync)
+        ro.disconnect()
+        if (resizeRaf) cancelAnimationFrame(resizeRaf)
         cancelAnimationFrame(rafIdRef.current)
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -469,6 +484,10 @@ const SnakeCanvas = forwardRef<SnakeCanvasHandle, Props>(
         style={{
           display: 'block',
           margin: '0 auto',
+          width: '100%',
+          maxWidth: 400,
+          height: 'auto',
+          aspectRatio: '1 / 1',
           borderRadius: 8,
           cursor: 'pointer',
         }}

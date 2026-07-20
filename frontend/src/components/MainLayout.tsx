@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Switch, Tooltip, Tag, ConfigProvider, theme, Popover, List, Typography } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Button, Drawer, Grid, Badge, Tooltip, Tag, ConfigProvider, theme, Popover, List, Typography } from 'antd'
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -12,9 +12,7 @@ import {
   UserOutlined,
   MessageOutlined,
   BellOutlined,
-  SafetyCertificateOutlined,
   TeamOutlined,
-  SwapOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
@@ -23,6 +21,7 @@ import { getUnreadCount, getUnreadNotifications, markRead, markAllRead } from '.
 import { getVersion } from '../api/version'
 import { isMobileView } from '../utils/platform'
 import MobileTabBar from './MobileTabBar'
+import SidebarHeader from './SidebarHeader'
 import dayjs from 'dayjs'
 import type { NotificationResponse } from '../types'
 
@@ -126,7 +125,7 @@ const MainLayout: React.FC = () => {
 
   // 铃铛弹窗内容
   const bellContent = (
-    <div style={{ width: 320, maxHeight: 360, overflow: 'hidden' }}>
+    <div style={{ width: 'min(320px, calc(100vw - 24px))', maxHeight: 420 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <Text strong>未读通知</Text>
         {unreadList.length > 0 && (
@@ -163,7 +162,7 @@ const MainLayout: React.FC = () => {
                 }
                 title={item.title}
                 description={
-                  <div>
+                  <div style={{ wordBreak: 'break-word' }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {item.content.length > 40 ? item.content.slice(0, 40) + '...' : item.content}
                     </Text>
@@ -252,59 +251,13 @@ const MainLayout: React.FC = () => {
 
   const sidebarContent = (
     <>
-      <div
-        style={{
-          paddingTop: 12,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: brandColor,
-            letterSpacing: 2,
-          }}
-        >
-          {isAdmin && adminMode ? '管理控制台' : '记账大王'}
-        </div>
-        {appVersion && (
-          <Text type="secondary" style={{ fontSize: 11, lineHeight: 1 }}>
-            v{appVersion}
-          </Text>
-        )}
-      </div>
-
-      {isAdmin && (
-        <div
-          style={{
-            padding: '8px 16px 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Tag
-            color={adminMode ? 'purple' : 'blue'}
-            style={{ margin: 0, fontSize: 11, borderRadius: 10 }}
-          >
-            {adminMode ? '管理模式' : '用户模式'}
-          </Tag>
-          <Tooltip title={adminMode ? '切换为普通用户视图' : '切换为管理视图'} placement="right">
-            <Switch
-              size="small"
-              checked={!adminMode}
-              checkedChildren={<SwapOutlined />}
-              unCheckedChildren={<SafetyCertificateOutlined />}
-              onChange={(checked) => setAdminMode(!checked)}
-            />
-          </Tooltip>
-        </div>
-      )}
-
+      <SidebarHeader
+        isAdmin={isAdmin}
+        adminMode={adminMode}
+        brandColor={brandColor}
+        appVersion={appVersion}
+        onToggleAdminMode={setAdminMode}
+      />
       <Menu
         mode="inline"
         theme={menuTheme as any}
@@ -372,7 +325,9 @@ const MainLayout: React.FC = () => {
               trigger="click"
               open={bellOpen}
               onOpenChange={handleBellOpen}
-              placement="bottomRight"
+              placement="bottom"
+              arrow={{ pointAtCenter: true }}
+              getPopupContainer={() => document.body}
               title={false}
             >
               <Badge count={unreadCount} size="small">
@@ -393,12 +348,21 @@ const MainLayout: React.FC = () => {
         </Header>
 
         <Content style={{ padding: isMobile ? 12 : 24, background: '#f5f7fa' }}>
-          <Outlet />
+          {/* 居中容器：桌面端所有页面在 1200px 内居中（视觉重心居中 + 留白平衡），
+             移动端 100% 占满。贪吃蛇页 .snake-stage 的负 margin 仍能撑出通栏感。 */}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 1200,
+              margin: '0 auto',
+            }}
+          >
+            <Outlet />
+          </div>
         </Content>
       </Layout>
 
       <Drawer
-        title={isAdmin && adminMode ? '管理控制台' : '记账大王'}
         placement="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -406,22 +370,38 @@ const MainLayout: React.FC = () => {
       >
         {isAdmin && adminMode ? (
           <ConfigProvider theme={adminTheme}>
+            <SidebarHeader
+              isAdmin={isAdmin}
+              adminMode={adminMode}
+              brandColor={brandColor}
+              appVersion={appVersion}
+              onToggleAdminMode={setAdminMode}
+            />
             <Menu
               mode="inline"
               selectedKeys={[selectedKey]}
               items={menuItems}
               onClick={({ key }) => go(key)}
-              style={{ borderRight: 0 }}
+              style={{ borderRight: 0, marginTop: 12 }}
             />
           </ConfigProvider>
         ) : (
-          <Menu
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            onClick={({ key }) => go(key)}
-            style={{ borderRight: 0 }}
-          />
+          <>
+            <SidebarHeader
+              isAdmin={isAdmin}
+              adminMode={adminMode}
+              brandColor={brandColor}
+              appVersion={appVersion}
+              onToggleAdminMode={setAdminMode}
+            />
+            <Menu
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              items={menuItems}
+              onClick={({ key }) => go(key)}
+              style={{ borderRight: 0, marginTop: 12 }}
+            />
+          </>
         )}
       </Drawer>
     </Layout>

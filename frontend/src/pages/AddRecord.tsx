@@ -49,7 +49,7 @@ const AddRecord: React.FC<Props> = ({ onSuccess }) => {
   }
 
   return (
-    <div style={{ maxWidth: 600 }}>
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <h2 style={{ marginBottom: 24, fontSize: 22 }}>记一笔</h2>
 
       <Card style={{ borderRadius: 12 }}>
