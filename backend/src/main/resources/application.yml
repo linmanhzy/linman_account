@@ -33,7 +33,7 @@ springdoc:
 # M1 登录鉴权配置
 myapp:
   # 系统版本号，前端通过 /api/version 读取后渲染在侧栏 Logo 右下角
-  version: "1.0.2"
+  version: "1.0.3"
   jwt:
     # 生产环境请通过环境变量 JWT_SECRET 设置为足够长的随机字符串
     secret: ${JWT_SECRET:change-me-in-production-please-use-long-random-string}

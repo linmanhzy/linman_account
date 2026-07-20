@@ -105,7 +105,7 @@ public class NotificationService {
         Notification n = new Notification();
         n.setUserId(user.getId());
         n.setTitle("欢迎加入记账大王！");
-        n.setContent("恭喜你成为记账大王的第 " + rank + " 位用户！开始记录你的每一笔收支吧～");
+        n.setContent("恭喜你成为记账大王的第 " + rank + " 位用户！开始记录你的每一笔收支吧～\n"+"如果您有疑问或关于系统的建议，可以从反馈建议处提交哦~😁💕");
         n.setIsRead(false);
         n.setType(NotificationType.WELCOME);
         n.setCreatedAt(LocalDateTime.now());
