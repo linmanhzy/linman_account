@@ -81,6 +81,8 @@ class WelcomeNotificationTest {
 
         when(userRepository.findByUsername("newuser")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("pass123", "enc")).thenReturn(true);
+        // 原子标记：本次应成功标记（首次登录）
+        when(userRepository.markFirstLoginGreetingSent(7L)).thenReturn(1);
         when(userRepository.countByCreatedAtLessThanEqual(t0)).thenReturn(5L);
         when(userRepository.save(any(User.class))).thenAnswer(a -> a.getArgument(0));
         when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("tok");
@@ -105,6 +107,8 @@ class WelcomeNotificationTest {
 
         when(userRepository.findByUsername("newuser")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("pass123", "enc")).thenReturn(true);
+        // 原子标记：返回 0 表示已被标记，不重复发送
+        when(userRepository.markFirstLoginGreetingSent(7L)).thenReturn(0);
         when(userRepository.save(any(User.class))).thenAnswer(a -> a.getArgument(0));
         when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("tok");
 

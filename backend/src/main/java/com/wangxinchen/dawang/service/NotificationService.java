@@ -12,6 +12,7 @@ import com.wangxinchen.dawang.entity.User;
 import com.wangxinchen.dawang.repository.NotificationRepository;
 import com.wangxinchen.dawang.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -99,7 +100,7 @@ public class NotificationService {
 
     /* ===== 首次登录欢迎（注册后第一次登录时调用） ===== */
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendFirstLoginGreeting(User user, int rank) {
         Notification n = new Notification();
         n.setUserId(user.getId());
@@ -113,8 +114,12 @@ public class NotificationService {
 
     /* ===== 事件通知（非固定时间节点） ===== */
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendFirstBillNotification(Long userId) {
+        // 去重：若已存在 EVENT 类型的通知（含并发场景），跳过避免重复发送
+        if (notificationRepository.existsByUserIdAndType(userId, NotificationType.EVENT)) {
+            return;
+        }
         Notification n = new Notification();
         n.setUserId(userId);
         n.setTitle("🎉 第一笔账单已记录");

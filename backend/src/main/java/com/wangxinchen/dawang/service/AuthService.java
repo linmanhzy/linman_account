@@ -55,10 +55,12 @@ public class AuthService {
         }
         user.setLastLoginAt(LocalDateTime.now());
         // 注册后首次登录：发送欢迎语（记账大王）并告知第 N 位用户，仅一次
-        if (!Boolean.TRUE.equals(user.getFirstLoginGreetingSent())) {
+        // 通过数据库原子 UPDATE WHERE 避免并发重复发送
+        int updated = userRepository.markFirstLoginGreetingSent(user.getId());
+        if (updated > 0) {
+            user.setFirstLoginGreetingSent(true); // 保持实体与 DB 一致
             int rank = (int) userRepository.countByCreatedAtLessThanEqual(user.getCreatedAt());
             notificationService.sendFirstLoginGreeting(user, rank);
-            user.setFirstLoginGreetingSent(true);
         }
         userRepository.save(user);
         return buildAuth(user);
