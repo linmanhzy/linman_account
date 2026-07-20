@@ -76,7 +76,7 @@ export interface NotificationResponse {
 
 // 定时通知配置（管理员）
 export type NotificationType = 'WELCOME' | 'DAILY' | 'HOLIDAY' | 'ADMIN'
-export type Frequency = 'DAILY' | 'SPECIFIC_DATE'
+export type Frequency = 'DAILY' | 'SPECIFIC_DATE' | 'ONCE'
 
 export interface ScheduledNotification {
   id: number

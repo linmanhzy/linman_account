@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Card, Tabs, Table, Button, Modal, Input, Form, Select, message, Tag,
   Spin, Empty, Popconfirm, Space, Typography, Switch, Tooltip, TimePicker
@@ -10,7 +11,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
-  getAllFeedbacks, replyFeedback, sendNotification, getAllUsers,
+  getAllFeedbacks, replyFeedback, getAllUsers,
   getFullUserList, createUser, updateUser, deleteUser,
   resetUserPassword, changeUserStatus,
   getScheduledNotifications, createScheduledNotification,
@@ -56,23 +57,25 @@ function useCountdown() {
 
 // ===== 管理面板主页 =====
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState('users')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeKey = searchParams.get('tab') || 'users'
+
+  const handleTabChange = (key: string) => {
+    setSearchParams({ tab: key })
+  }
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
       <Card style={{ borderRadius: 12 }}>
-        <Tabs activeKey={activeTab} onChange={setActiveTab} size="large">
+        <Tabs activeKey={activeKey} onChange={handleTabChange} size="large">
           <Tabs.TabPane tab="用户管理" key="users">
             <UserManager />
           </Tabs.TabPane>
           <Tabs.TabPane tab="反馈管理" key="feedback">
             <FeedbackManager />
           </Tabs.TabPane>
-          <Tabs.TabPane tab="发送通知" key="notify">
-            <NotifySender />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab="定时通知" key="scheduled">
-            <ScheduledNotifier />
+          <Tabs.TabPane tab="拟写通知" key="notify">
+            <MergedNotifier />
           </Tabs.TabPane>
         </Tabs>
       </Card>
@@ -667,86 +670,23 @@ function FeedbackManager() {
   )
 }
 
-// ===== 发送通知（保持不变） =====
-function NotifySender() {
-  const [form] = Form.useForm()
-  const [users, setUsers] = useState<{ id: number; username: string }[]>([])
-  const [sending, setSending] = useState(false)
-
-  useEffect(() => {
-    getAllUsers()
-      .then(setUsers)
-      .catch(() => message.error('加载用户列表失败'))
-  }, [])
-
-  const handleSend = async (values: {
-    title: string; content: string; scope: 'all' | 'specific'; targetUserId?: number
-  }) => {
-    setSending(true)
-    try {
-      await sendNotification({
-        title: values.title, content: values.content,
-        targetUserId: values.scope === 'specific' ? values.targetUserId : null,
-      })
-      message.success('通知发送成功')
-      form.resetFields()
-    } catch {
-      message.error('发送失败')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <Form form={form} layout="vertical" onFinish={handleSend} style={{ maxWidth: 500 }}>
-      <Form.Item name="title" label="通知标题" rules={[{ required: true, message: '请输入标题' }]}>
-        <Input placeholder="如：系统维护公告" maxLength={100} />
-      </Form.Item>
-      <Form.Item name="content" label="通知内容" rules={[{ required: true, message: '请输入内容' }]}>
-        <TextArea rows={4} placeholder="通知正文……" maxLength={1000} showCount />
-      </Form.Item>
-      <Form.Item name="scope" label="发送范围" initialValue="all" rules={[{ required: true }]}>
-        <Select options={[
-          { label: '全体用户', value: 'all' },
-          { label: '指定用户', value: 'specific' },
-        ]} />
-      </Form.Item>
-      <Form.Item noStyle shouldUpdate={(prev, cur) => prev.scope !== cur.scope}>
-        {({ getFieldValue }) =>
-          getFieldValue('scope') === 'specific' ? (
-            <Form.Item name="targetUserId" label="选择用户" rules={[{ required: true, message: '请选择目标用户' }]}>
-              <Select showSearch placeholder="搜索并选择用户"
-                filterOption={(input, option) =>
-                  (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                }
-                options={users.map((u) => ({ label: u.username, value: u.id }))}
-              />
-            </Form.Item>
-          ) : null
-        }
-      </Form.Item>
-      <Form.Item>
-        <Button type="primary" htmlType="submit" icon={<SendOutlined />} loading={sending} block>
-          发送通知
-        </Button>
-      </Form.Item>
-    </Form>
-  )
-}
-
-// ===== 定时通知管理组件 =====
-function ScheduledNotifier() {
+// ===== 拟写通知（整合原发送通知 + 定时通知） =====
+function MergedNotifier() {
   const [list, setList] = useState<ScheduledNotification[]>([])
   const [loading, setLoading] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<ScheduledNotification | null>(null)
+  const [users, setUsers] = useState<{ id: number; username: string }[]>([])
+  const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+  const [editForm] = Form.useForm()
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editing, setEditing] = useState<ScheduledNotification | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const data = await getScheduledNotifications()
-      setList(data)
+      // 过滤掉「仅一次」已发送的记录（frequency=ONCE && enabled=false），仅展示待定时的
+      setList(data.filter((sn) => !(sn.frequency === 'ONCE' && !sn.enabled)))
     } catch {
       message.error('加载定时通知失败')
     } finally {
@@ -754,18 +694,36 @@ function ScheduledNotifier() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); getAllUsers().then(setUsers).catch(() => {}) }, [load])
 
-  const openCreate = () => {
-    setEditing(null)
-    form.resetFields()
-    form.setFieldsValue({ type: 'DAILY', frequency: 'DAILY' })
-    setModalOpen(true)
+  // 提交拟写通知（ONCE 频率由后端立即派发，其他频率进入定时调度）
+  const handleSubmit = async (values: any) => {
+    setSubmitting(true)
+    try {
+      const req: ScheduledNotificationRequest = {
+        title: values.title,
+        content: values.content,
+        frequency: values.frequency || 'ONCE',
+        sendTime: values.sendTime ? values.sendTime.format('HH:mm:ss') : '00:00:00',
+        sendDate: values.sendDate ? values.sendDate.format('YYYY-MM-DD') : null,
+        type: values.type || 'ADMIN',
+        targetUserId: values.scope === 'specific' ? values.targetUserId : null,
+      }
+      await createScheduledNotification(req)
+      message.success(values.frequency === 'ONCE' ? '通知已立即发送' : '定时通知已创建')
+      form.resetFields()
+      load()
+    } catch {
+      message.error('操作失败')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
+  // 编辑定时通知
   const openEdit = (record: ScheduledNotification) => {
     setEditing(record)
-    form.setFieldsValue({
+    editForm.setFieldsValue({
       title: record.title,
       content: record.content,
       frequency: record.frequency,
@@ -773,16 +731,27 @@ function ScheduledNotifier() {
       sendDate: record.sendDate ? dayjs(record.sendDate) : undefined,
       type: record.type,
     })
-    setModalOpen(true)
+    setEditModalOpen(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleEdit = async () => {
     try {
-      await deleteScheduledNotification(id)
-      message.success('已删除')
+      const values = await editForm.validateFields()
+      const req: ScheduledNotificationRequest = {
+        title: values.title,
+        content: values.content,
+        frequency: values.frequency,
+        sendTime: values.sendTime ? values.sendTime.format('HH:mm:ss') : '09:00:00',
+        sendDate: values.sendDate ? values.sendDate.format('YYYY-MM-DD') : null,
+        type: values.type || 'DAILY',
+        targetUserId: editing?.targetUserId || null,
+      }
+      await updateScheduledNotification(editing!.id, req)
+      message.success('已更新')
+      setEditModalOpen(false)
       load()
     } catch {
-      message.error('删除失败')
+      // validation error
     }
   }
 
@@ -791,52 +760,33 @@ function ScheduledNotifier() {
       await toggleScheduledNotification(record.id)
       message.success(record.enabled ? '已禁用' : '已启用')
       load()
-    } catch {
-      message.error('操作失败')
-    }
+    } catch { message.error('操作失败') }
   }
 
-  const handleSubmit = async () => {
+  const handleDelete = async (id: number) => {
     try {
-      const values = await form.validateFields()
-      const req: ScheduledNotificationRequest = {
-        title: values.title,
-        content: values.content,
-        frequency: values.frequency,
-        sendTime: values.sendTime ? values.sendTime.format('HH:mm:ss') : '09:00:00',
-        sendDate: values.sendDate ? values.sendDate.format('YYYY-MM-DD') : null,
-        type: values.type || 'DAILY',
-      }
-      if (editing) {
-        await updateScheduledNotification(editing.id, req)
-        message.success('已更新')
-      } else {
-        await createScheduledNotification(req)
-        message.success('已创建')
-      }
-      setModalOpen(false)
+      await deleteScheduledNotification(id)
+      message.success('已删除')
       load()
-    } catch {
-      // validation error, ignore
-    }
+    } catch { message.error('删除失败') }
+  }
+
+  const freqLabel = (f: string, r: ScheduledNotification) => {
+    if (f === 'ONCE') return <Tag color="green">仅一次（已发送）</Tag>
+    if (f === 'DAILY') return <Tag color="blue">每日 {r.sendTime?.slice(0, 5)}</Tag>
+    if (f === 'SPECIFIC_DATE') return <Tag color="orange">{r.sendDate} {r.sendTime?.slice(0, 5)}</Tag>
+    return <Tag>{f}</Tag>
   }
 
   const columns = [
     { title: '标题', dataIndex: 'title', key: 'title' },
-    {
-      title: '频率', dataIndex: 'frequency', key: 'frequency',
-      render: (f: string, r: ScheduledNotification) =>
-        f === 'DAILY' ? <Tag color="blue">每日 {r.sendTime?.slice(0, 5)}</Tag>
-          : <Tag color="orange">{r.sendDate} {r.sendTime?.slice(0, 5)}</Tag>,
-    },
+    { title: '频率', dataIndex: 'frequency', key: 'frequency', render: freqLabel },
     {
       title: '类型', dataIndex: 'type', key: 'type',
       render: (t: string) => {
         const map: Record<string, { color: string; text: string }> = {
-          DAILY: { color: 'blue', text: '每日' },
-          HOLIDAY: { color: 'orange', text: '节假日' },
-          WELCOME: { color: 'green', text: '欢迎' },
-          ADMIN: { color: 'purple', text: '系统' },
+          DAILY: { color: 'blue', text: '每日' }, HOLIDAY: { color: 'orange', text: '节假日' },
+          WELCOME: { color: 'green', text: '欢迎' }, ADMIN: { color: 'purple', text: '系统' },
         }
         const m = map[t] || { color: 'default', text: t }
         return <Tag color={m.color}>{m.text}</Tag>
@@ -844,70 +794,130 @@ function ScheduledNotifier() {
     },
     {
       title: '状态', dataIndex: 'enabled', key: 'enabled',
-      render: (v: boolean, r: ScheduledNotification) => (
-        <Switch checked={v} onChange={() => handleToggle(r)} />
-      ),
+      render: (v: boolean, r: ScheduledNotification) =>
+        r.frequency === 'ONCE' ? <Tag color="default">已发送</Tag> : <Switch checked={v} onChange={() => handleToggle(r)} />,
     },
-    {
-      title: '上次发送', dataIndex: 'lastFireDate', key: 'lastFireDate',
-      render: (d: string) => d || '从未',
-    },
+    { title: '上次发送', dataIndex: 'lastFireDate', key: 'lastFireDate', render: (d: string) => d || '从未' },
     {
       title: '操作', key: 'actions',
-      render: (_: unknown, r: ScheduledNotification) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
-          <Popconfirm title="确定删除？" onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
+      render: (_: unknown, r: ScheduledNotification) =>
+        r.frequency === 'ONCE' ? null : (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>编辑</Button>
+            <Popconfirm title="确定删除？" onConfirm={() => handleDelete(r.id)}>
+              <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            </Popconfirm>
+          </Space>
+        ),
     },
   ]
 
   return (
-    <Card>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建定时通知</Button>
-        </div>
-        <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
-      </div>
-      <Table
-        columns={columns}
-        dataSource={list}
-        rowKey="id"
-        loading={loading}
-        locale={{ emptyText: <Empty description="暂无定时通知" /> }}
-      />
-      <Modal
-        title={editing ? '编辑定时通知' : '新建定时通知'}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleSubmit}
-        destroyOnClose
-      >
-        <Form form={form} layout="vertical">
+    <>
+      {/* 拟写通知表单 */}
+      <Card title="拟写通知" style={{ marginBottom: 16 }}>
+        <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ maxWidth: 500 }}>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input placeholder="如：每日记账提醒" />
+            <Input placeholder="如：系统维护公告" maxLength={100} />
           </Form.Item>
           <Form.Item name="content" label="内容" rules={[{ required: true, message: '请输入内容' }]}>
-            <Input.TextArea rows={3} placeholder="通知内容" />
+            <TextArea rows={3} placeholder="通知内容" maxLength={1000} showCount />
           </Form.Item>
-          <Form.Item name="frequency" label="频率" rules={[{ required: true }]}>
+          <Form.Item name="frequency" label="发送方式" initialValue="ONCE" rules={[{ required: true }]}>
             <Select>
-              <Select.Option value="DAILY">每日</Select.Option>
+              <Select.Option value="ONCE">仅一次（立即发送）</Select.Option>
+              <Select.Option value="DAILY">每日定时</Select.Option>
               <Select.Option value="SPECIFIC_DATE">指定日期</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="sendTime" label="发送时间" rules={[{ required: true, message: '请选择时间' }]}>
+          <Form.Item name="scope" label="发送范围" initialValue="all" rules={[{ required: true }]}>
+            <Select options={[
+              { label: '全体用户', value: 'all' },
+              { label: '指定用户', value: 'specific' },
+            ]} />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.scope !== cur.scope}>
+            {({ getFieldValue }) =>
+              getFieldValue('scope') === 'specific' ? (
+                <Form.Item name="targetUserId" label="选择用户" rules={[{ required: true, message: '请选择目标用户' }]}>
+                  <Select showSearch placeholder="搜索并选择用户"
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={users.map((u) => ({ label: u.username, value: u.id }))} />
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.frequency !== cur.frequency}>
+            {({ getFieldValue }) => {
+              const freq = getFieldValue('frequency')
+              if (freq === 'ONCE') return null
+              return (
+                <>
+                  <Form.Item name="sendTime" label="发送时间"
+                    rules={[{ required: true, message: '请选择时间' }]}>
+                    <TimePicker format="HH:mm" style={{ width: '100%' }} />
+                  </Form.Item>
+                  {freq === 'SPECIFIC_DATE' && (
+                    <Form.Item name="sendDate" label="发送日期"
+                      rules={[{ required: true, message: '请选择日期' }]}>
+                      <Input type="date" />
+                    </Form.Item>
+                  )}
+                </>
+              )
+            }}
+          </Form.Item>
+          <Form.Item name="type" label="通知类型" initialValue="ADMIN">
+            <Select>
+              <Select.Option value="DAILY">每日</Select.Option>
+              <Select.Option value="HOLIDAY">节假日</Select.Option>
+              <Select.Option value="ADMIN">系统通知</Select.Option>
+              <Select.Option value="WELCOME">欢迎</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" icon={<SendOutlined />} loading={submitting} block>
+              发送
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+
+      {/* 定时通知列表 */}
+      <Card title="定时通知管理">
+        <div style={{ marginBottom: 12, textAlign: 'right' }}>
+          <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+        </div>
+        <Table columns={columns} dataSource={list} rowKey="id" loading={loading}
+          locale={{ emptyText: <Empty description="暂无定时通知" /> }} />
+      </Card>
+
+      {/* 编辑弹窗 */}
+      <Modal title="编辑定时通知" open={editModalOpen}
+        onCancel={() => setEditModalOpen(false)} onOk={handleEdit} destroyOnClose>
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="title" label="标题" rules={[{ required: true }]}>
+            <Input placeholder="如：每日记账提醒" />
+          </Form.Item>
+          <Form.Item name="content" label="内容" rules={[{ required: true }]}>
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="frequency" label="发送方式" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value="DAILY">每日定时</Select.Option>
+              <Select.Option value="SPECIFIC_DATE">指定日期</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="sendTime" label="发送时间" rules={[{ required: true }]}>
             <TimePicker format="HH:mm" style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item shouldUpdate noStyle>
             {({ getFieldValue }) =>
               getFieldValue('frequency') === 'SPECIFIC_DATE' ? (
-                <Form.Item name="sendDate" label="发送日期" rules={[{ required: true, message: '请选择日期' }]}>
-                  <Input type="date" style={{ width: '100%' }} />
+                <Form.Item name="sendDate" label="发送日期" rules={[{ required: true }]}>
+                  <Input type="date" />
                 </Form.Item>
               ) : null
             }
@@ -921,6 +931,6 @@ function ScheduledNotifier() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </>
   )
 }

@@ -20,6 +20,7 @@ import {
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { getUnreadCount, getUnreadNotifications, markRead, markAllRead } from '../api/notifications'
+import { getVersion } from '../api/version'
 import { isMobileView } from '../utils/platform'
 import MobileTabBar from './MobileTabBar'
 import dayjs from 'dayjs'
@@ -37,11 +38,13 @@ const userMenuItems = [
   { key: '/categories', icon: <SettingOutlined />, label: '分类管理' },
   { key: '/report', icon: <BarChartOutlined />, label: '报表' },
   { key: '/snake', icon: <PlayCircleOutlined />, label: '贪吃蛇' },
+  { key: '/feedback', icon: <MessageOutlined />, label: '反馈建议' },
 ]
 
 const adminMenuItems = [
-  { key: '/admin', icon: <TeamOutlined />, label: '用户管理' },
-  { key: '/feedback', icon: <MessageOutlined />, label: '反馈管理' },
+  { key: '/admin?tab=users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/admin?tab=feedback', icon: <MessageOutlined />, label: '反馈管理' },
+  { key: '/admin?tab=notify', icon: <BellOutlined />, label: '拟写通知' },
 ]
 
 const MainLayout: React.FC = () => {
@@ -58,6 +61,14 @@ const MainLayout: React.FC = () => {
   const [bellOpen, setBellOpen] = useState(false)
   const bellFetching = useRef(false)
   const [adminMode, setAdminMode] = useState(isAdmin)
+  const [appVersion, setAppVersion] = useState('')
+
+  // 挂载时请求版本号（后端 /api/version 公开接口），缓存后不再重复请求
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {})
+  }, [])
 
   // 轮询未读通知数（移动端由 MobileProfile 负责红点，这里仅桌面端轮询，避免双份请求）
   useEffect(() => {
@@ -175,31 +186,18 @@ const MainLayout: React.FC = () => {
     </div>
   )
 
-  // 管理员默认进入管理模式，切换用户时出现「通知 + 反馈」公共入口
-  const commonItems = isAdmin
-    ? [
-        {
-          key: '/notifications',
-          icon: <BellOutlined />,
-          label: (
-            <Badge count={unreadCount} size="small" offset={[8, 0]}>
-              通知中心
-            </Badge>
-          ),
-        },
-      ]
-    : [
-        {
-          key: '/notifications',
-          icon: <BellOutlined />,
-          label: (
-            <Badge count={unreadCount} size="small" offset={[8, 0]}>
-              通知中心
-            </Badge>
-          ),
-        },
-        { key: '/feedback', icon: <MessageOutlined />, label: '反馈建议' },
-      ]
+  // 公共服务入口：通知中心（反馈建议已移至 userMenuItems / 反馈管理移至 adminMenuItems）
+  const commonItems = [
+    {
+      key: '/notifications',
+      icon: <BellOutlined />,
+      label: (
+        <Badge count={unreadCount} size="small" offset={[8, 0]}>
+          通知中心
+        </Badge>
+      ),
+    },
+  ]
 
   // 管理员模式：仅显示管理 + 通知入口
   // 用户模式：显示完整用户菜单 + 通知/反馈
@@ -209,9 +207,14 @@ const MainLayout: React.FC = () => {
       ? [...userMenuItems, ...commonItems]
       : [...userMenuItems, ...commonItems]
 
-  const selectedKey =
-    menuItems.find((m) => location.pathname.startsWith(m.key))?.key ||
-    (isAdmin && adminMode ? '/admin' : '/dashboard')
+  // 选中文案：/admin?tab=xxx 匹配 query param；其他路径用 startsWith
+  const selectedKey = menuItems.find((m) => {
+    if (location.pathname === '/admin') {
+      const tab = new URLSearchParams(location.search).get('tab') || 'users'
+      return m.key === `/admin?tab=${tab}`
+    }
+    return location.pathname.startsWith(m.key)
+  })?.key || (isAdmin && adminMode ? '/admin?tab=users' : '/dashboard')
 
   const go = (key: string) => {
     navigate(key)
@@ -251,18 +254,28 @@ const MainLayout: React.FC = () => {
     <>
       <div
         style={{
-          height: 56,
+          paddingTop: 12,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          fontSize: 18,
-          fontWeight: 700,
-          color: brandColor,
-          letterSpacing: 2,
+          gap: 2,
         }}
       >
-        {isAdmin && adminMode ? '管理控制台' : '记账大王'}
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            color: brandColor,
+            letterSpacing: 2,
+          }}
+        >
+          {isAdmin && adminMode ? '管理控制台' : '记账大王'}
+        </div>
+        {appVersion && (
+          <Text type="secondary" style={{ fontSize: 11, lineHeight: 1 }}>
+            v{appVersion}
+          </Text>
+        )}
       </div>
 
       {isAdmin && (
@@ -342,16 +355,16 @@ const MainLayout: React.FC = () => {
             borderBottom: '1px solid #f0f0f0',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isMobile && (
               <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
             )}
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#1677ff' }}>记账大王</span>
-            {isAdmin && (
-              <Tag color={adminMode ? 'purple' : 'blue'} style={{ margin: 0, borderRadius: 10 }}>
-                {adminMode ? '管理模式' : '用户模式'}
-              </Tag>
-            )}
+            <Tooltip title="记一笔">
+              <Button type="text" icon={<PlusCircleOutlined />} onClick={() => navigate('/add')} />
+            </Tooltip>
+            <Tooltip title="报表">
+              <Button type="text" icon={<BarChartOutlined />} onClick={() => navigate('/report')} />
+            </Tooltip>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Popover

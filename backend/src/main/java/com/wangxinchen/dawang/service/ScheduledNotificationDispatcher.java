@@ -49,6 +49,10 @@ public class ScheduledNotificationDispatcher {
     void dispatchDue(LocalDate today, LocalDateTime now) {
         List<ScheduledNotification> configs = scheduledNotificationRepository.findByEnabledTrue();
         for (ScheduledNotification sn : configs) {
+            // ONCE 频率的通知仅在创建时立即发送，跳过定时调度（兜底保护）
+            if (sn.getFrequency() == Frequency.ONCE) {
+                continue;
+            }
             if (!isDueToday(sn, today, now)) {
                 continue;
             }

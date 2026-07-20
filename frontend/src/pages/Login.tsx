@@ -18,12 +18,15 @@ const Login: React.FC = () => {
       const values = await form.validateFields()
       setLoading(true)
       if (tab === 'login') {
-        await login(values.username, values.password)
+        const result = await login(values.username, values.password)
+        message.success('登录成功')
+        // 管理员登录后默认进入用户管理，普通用户进入收支概览
+        navigate(result.role === 'ADMIN' ? '/admin' : '/dashboard')
       } else {
         await register(values.username, values.password)
+        message.success('注册成功，已自动登录')
+        navigate('/dashboard')
       }
-      message.success(tab === 'login' ? '登录成功' : '注册成功，已自动登录')
-      navigate('/')
     } catch (err: any) {
       if (err && err.errorFields) return
       message.error(err?.message || '操作失败')

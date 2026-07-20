@@ -6,7 +6,7 @@ interface AuthValue {
   token: string | null
   username: string | null
   role: string | null
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<LoginResult>
   register: (username: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -36,8 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole(res.role)
   }
 
-  const login = useCallback(async (u: string, p: string) => {
-    apply(await apiLogin(u, p))
+  const login = useCallback(async (u: string, p: string): Promise<LoginResult> => {
+    const result = await apiLogin(u, p)
+    apply(result)
+    return result
   }, [])
 
   const register = useCallback(async (u: string, p: string) => {

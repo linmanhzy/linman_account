@@ -6,6 +6,7 @@ import com.wangxinchen.dawang.entity.Frequency;
 import com.wangxinchen.dawang.entity.NotificationType;
 import com.wangxinchen.dawang.entity.ScheduledNotification;
 import com.wangxinchen.dawang.repository.ScheduledNotificationRepository;
+import com.wangxinchen.dawang.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,9 +21,12 @@ import java.util.List;
 public class ScheduledNotificationAdminController {
 
     private final ScheduledNotificationRepository repo;
+    private final NotificationService notificationService;
 
-    public ScheduledNotificationAdminController(ScheduledNotificationRepository repo) {
+    public ScheduledNotificationAdminController(ScheduledNotificationRepository repo,
+                                                 NotificationService notificationService) {
         this.repo = repo;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -37,7 +41,7 @@ public class ScheduledNotificationAdminController {
     /**
      * 创建新的定时通知
      */
-    @Operation(summary = "创建定时通知")
+    @Operation(summary = "创建定时通知（ONCE 频率立即发送，其他频率进入调度）")
     @PostMapping
     public Result<ScheduledNotification> create(@Valid @RequestBody ScheduledNotificationRequest req) {
         ScheduledNotification sn = new ScheduledNotification();
@@ -47,9 +51,17 @@ public class ScheduledNotificationAdminController {
         sn.setSendTime(req.getSendTime());
         sn.setSendDate(req.getSendDate());
         sn.setType(req.getType() != null ? req.getType() : NotificationType.DAILY);
-        sn.setEnabled(true);
         sn.setTargetUserId(req.getTargetUserId());
         sn.setCreatedAt(LocalDateTime.now());
+
+        // ONCE 频率：立即通过 NotificationService 派发，然后保存为 disabled 记录（不进入定时调度）
+        if (req.getFrequency() == Frequency.ONCE) {
+            notificationService.sendScheduledToAll(sn);
+            sn.setEnabled(false);
+        } else {
+            sn.setEnabled(true);
+        }
+
         return Result.ok(repo.save(sn));
     }
 

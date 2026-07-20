@@ -32,6 +32,12 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return <>{children}</>
 }
 
+const DefaultRedirect: React.FC = () => {
+  const { role } = useAuth()
+  // 管理员登录后默认进入用户管理，普通用户进入收支概览
+  return <Navigate to={role === 'ADMIN' ? '/admin' : '/dashboard'} replace />
+}
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
@@ -48,7 +54,7 @@ const App: React.FC = () => {
               </RequireAuth>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<DefaultRedirect />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="add" element={<AddRecord />} />
             <Route path="list" element={<RecordList />} />
