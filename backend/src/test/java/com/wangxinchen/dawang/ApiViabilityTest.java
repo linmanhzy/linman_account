@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -315,5 +316,97 @@ class ApiViabilityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    // §2.1 排行榜遮蔽：登录用户的条目必须被后端标记为 me=true（用户名已遮蔽，前端据此高亮）
+    @Test
+    void game_leaderboard_marksCurrentUserAsMe() throws Exception {
+        // 先提交一局，确保登录用户登上榜单
+        mvc.perform(post("/api/game/scores")
+                        .header("Authorization", authHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":88}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        MvcResult lb = mvc.perform(get("/api/game/leaderboard").header("Authorization", authHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data").isArray())
+                .andReturn();
+
+        JsonNode arr = objectMapper.readTree(lb.getResponse().getContentAsByteArray()).path("data");
+        assertTrue(arr.isArray() && arr.size() > 0, "排行榜不应为空");
+        int meCount = 0;
+        for (JsonNode e : arr) {
+            assertTrue(e.has("username"), "排行榜条目应含 username");
+            assertTrue(e.has("bestScore"), "排行榜条目应含 bestScore");
+            if (e.path("me").asBoolean(false)) meCount++;
+        }
+        assertEquals(1, meCount, "当前登录用户应恰好被标记为 me=true");
+    }
+
+    // §2.3 首次登录欢迎+第N位：@BeforeAll 的首次登录应触发 EVENT 类型欢迎通知
+    @Test
+    void welcomeGreeting_sentOnFirstLogin() throws Exception {
+        MvcResult list = mvc.perform(get("/api/notifications").header("Authorization", authHeader()))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode arr = objectMapper.readTree(list.getResponse().getContentAsByteArray()).path("data");
+        boolean found = false;
+        for (JsonNode n : arr) {
+            if (n.path("title").asText().contains("欢迎")) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found, "首次登录后应有欢迎+第N位通知, 实际: " + list.getResponse().getContentAsString());
+    }
+
+    // §2.4 第一笔账单：用专属新用户创建首条账单后，应收到「第一笔账单」事件通知
+    @Test
+    void firstBill_notificationSentAfterFirstRecord() throws Exception {
+        // 创建专属新用户，避免 admin 已存在账单导致判定非首笔
+        String username = "firstbill_" + System.nanoTime();
+        String password = "Pass@123";
+        mvc.perform(post("/api/admin/users")
+                        .header("Authorization", authHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\",\"role\":\"USER\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        // 以新用户登录，拿到其 token
+        MvcResult login = mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+        String userToken = objectMapper.readTree(login.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+
+        // 新用户创建首条账单 → 触发第一笔账单通知
+        String createBody = "{\"type\":\"expense\",\"amount\":9.99,\"recordDate\":\"2026-07-20\","
+                + "\"categoryL1\":\"餐饮\",\"categoryL2\":\"早餐\",\"note\":\"first-bill-viability\"}";
+        mvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        MvcResult list = mvc.perform(get("/api/notifications").header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode arr = objectMapper.readTree(list.getResponse().getContentAsByteArray()).path("data");
+        boolean found = false;
+        for (JsonNode n : arr) {
+            if ("EVENT".equals(n.path("type").asText()) && n.path("title").asText().contains("第一笔")) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found, "创建首笔账单后应有「第一笔账单」事件通知, 实际: " + list.getResponse().getContentAsString());
     }
 }

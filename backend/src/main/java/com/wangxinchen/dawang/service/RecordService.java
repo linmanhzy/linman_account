@@ -10,6 +10,7 @@ import com.wangxinchen.dawang.dto.UserRecordQuota;
 import com.wangxinchen.dawang.entity.Record;
 import com.wangxinchen.dawang.repository.RecordRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -22,15 +23,20 @@ import java.util.stream.Collectors;
 @Service
 public class RecordService {
     private final RecordRepository recordRepository;
+    private final NotificationService notificationService;
 
-    public RecordService(RecordRepository recordRepository) {
+    public RecordService(RecordRepository recordRepository, NotificationService notificationService) {
         this.recordRepository = recordRepository;
+        this.notificationService = notificationService;
     }
 
     private static final long MAX_RECORDS_PER_USER = 50_000;
 
+    @Transactional
     public RecordResponse create(Long userId, RecordRequest req) {
+        // 先统计再保存：count==0 意味着这条就是该用户的「第一笔账单」
         long count = recordRepository.countByUserId(userId);
+        boolean isFirstBill = (count == 0);
         if (count >= MAX_RECORDS_PER_USER) {
             throw new BizException(400,
                     "记录已达上限（" + MAX_RECORDS_PER_USER + " 条），请导出数据后删除旧记录再继续记账。");
@@ -39,7 +45,12 @@ public class RecordService {
         r.setUserId(userId);
         apply(r, req);
         r.setCreatedAt(LocalDateTime.now());
-        return toDto(recordRepository.save(r));
+        Record saved = recordRepository.save(r);
+        // §2.4 第一笔账单事件通知：仅在确实是首笔时触发，避免重复打扰
+        if (isFirstBill) {
+            notificationService.sendFirstBillNotification(userId);
+        }
+        return toDto(saved);
     }
 
     public RecordResponse update(Long userId, Long id, RecordRequest req) {

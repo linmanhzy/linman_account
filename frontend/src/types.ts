@@ -123,6 +123,7 @@ export interface LeaderboardEntry {
   userId: number
   username: string
   bestScore: number
+  me?: boolean
 }
 
 // 用户管理（管理员）

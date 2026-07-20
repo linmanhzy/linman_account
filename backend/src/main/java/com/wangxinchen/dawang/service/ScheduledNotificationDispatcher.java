@@ -18,6 +18,12 @@ public class ScheduledNotificationDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(ScheduledNotificationDispatcher.class);
 
+    /**
+     * 触发窗口：仅在 sendTime 起 SEND_WINDOW_MINUTES 分钟内扫描到才派发。
+     * 避免「晚上设置 7:30、下一分钟立即发出」以及「晚于设定时间就补发」的问题。
+     */
+    private static final int SEND_WINDOW_MINUTES = 2;
+
     private final ScheduledNotificationRepository scheduledNotificationRepository;
     private final NotificationService notificationService;
 
@@ -85,7 +91,8 @@ public class ScheduledNotificationDispatcher {
                 return false;
             }
         }
-        // DAILY 或 SPECIFIC_DATE（今天匹配）：检查时间
-        return !now.toLocalTime().isBefore(st);
+        // DAILY 或 SPECIFIC_DATE（今天匹配）：仅在 sendTime 起 SEND_WINDOW_MINUTES 窗口内触发
+        LocalTime t = now.toLocalTime();
+        return !t.isBefore(st) && t.isBefore(st.plusMinutes(SEND_WINDOW_MINUTES));
     }
 }

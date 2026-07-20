@@ -60,6 +60,7 @@ services:
       - -Xms128m
       - -XX:MaxMetaspaceSize=128m
       - -Xss256k
+      - -Duser.timezone=Asia/Shanghai
       - -XX:+UseContainerSupport
       - -jar
       - app.jar

@@ -41,7 +41,6 @@ public class AuthService {
         user.setCreatedAt(LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
         User saved = userRepository.save(user);
-        notificationService.createWelcomeNotification(saved);
         return buildAuth(saved);
     }
 
@@ -55,6 +54,12 @@ public class AuthService {
             throw new BizException(403, "该账户已被禁用，请联系管理员");
         }
         user.setLastLoginAt(LocalDateTime.now());
+        // 注册后首次登录：发送欢迎语（记账大王）并告知第 N 位用户，仅一次
+        if (!Boolean.TRUE.equals(user.getFirstLoginGreetingSent())) {
+            int rank = (int) userRepository.countByCreatedAtLessThanEqual(user.getCreatedAt());
+            notificationService.sendFirstLoginGreeting(user, rank);
+            user.setFirstLoginGreetingSent(true);
+        }
         userRepository.save(user);
         return buildAuth(user);
     }

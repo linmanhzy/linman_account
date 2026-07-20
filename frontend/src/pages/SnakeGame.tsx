@@ -194,7 +194,8 @@ const SnakeGame: React.FC = () => {
               ) : leaderboard.length > 0 ? (
                 <div>
                   {leaderboard.map((item, idx) => {
-                    const me = !!username && item.username === username
+                    // §2.1 优先用后端标记的 item.me（排行榜用户名已遮蔽，前端无法可靠比对）
+                    const me = item.me === true || (!!username && item.username === username)
                     return (
                       <div className={`lb-row${me ? ' me' : ''}`} key={item.userId}>
                         <span className={`lb-rank ${rankClass(idx)}`}>{idx + 1}</span>

@@ -34,9 +34,9 @@ public class GameScoreController {
         return Result.ok(gameScoreService.my(SecurityHelper.getCurrentUserId()));
     }
 
-    @Operation(summary = "查看全局排行榜（按最高分降序）")
+    @Operation(summary = "查看全局排行榜（按最高分降序，非本人用户名脱敏）")
     @GetMapping("/leaderboard")
     public Result<List<LeaderboardEntry>> leaderboard(@RequestParam(defaultValue = "20") int limit) {
-        return Result.ok(gameScoreService.leaderboard(limit));
+        return Result.ok(gameScoreService.leaderboard(limit, SecurityHelper.getCurrentUserId()));
     }
 }

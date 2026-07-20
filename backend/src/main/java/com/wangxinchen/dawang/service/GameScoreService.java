@@ -56,7 +56,7 @@ public class GameScoreService {
         return s;
     }
 
-    public List<LeaderboardEntry> leaderboard(int limit) {
+    public List<LeaderboardEntry> leaderboard(int limit, Long currentUserId) {
         if (limit <= 0) limit = 20;
         // 防止前端传入超大值导致全量加载/内存压力
         limit = Math.min(limit, 100);
@@ -70,13 +70,30 @@ public class GameScoreService {
         List<LeaderboardEntry> result = new ArrayList<>();
         for (int i = 0; i < end; i++) {
             Object[] row = rows.get(i);
+            Long uid = (Long) row[0];
+            boolean self = currentUserId != null && uid.equals(currentUserId);
+            String rawName = nameMap.getOrDefault(uid, "未知用户");
             LeaderboardEntry e = new LeaderboardEntry();
-            e.setUserId((Long) row[0]);
+            e.setUserId(uid);
             e.setBestScore((Integer) row[1]);
-            e.setUsername(nameMap.getOrDefault((Long) row[0], "未知用户"));
+            e.setMe(self);
+            // 保护隐私：非本人用户名遮蔽（保留首字以及尾字），本人显示全名
+            e.setUsername(self ? rawName : maskUsername(rawName));
             result.add(e);
         }
         return result;
+    }
+
+    /**
+     * 用户名脱敏：保留首字与尾字，中间用 * 遮蔽（至少 1 个），「未知用户」不处理。
+     * 例：张三丰→张*丰，王小明明→王**明。
+     */
+    private String maskUsername(String name) {
+        if (name == null || name.length() <= 1 || "未知用户".equals(name)) {
+            return name;
+        }
+        int stars = Math.max(name.length() - 2, 1);
+        return name.substring(0, 1) + "*".repeat(stars) + name.substring(name.length() - 1);
     }
 
     @Transactional

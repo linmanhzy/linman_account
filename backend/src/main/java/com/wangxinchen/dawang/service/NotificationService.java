@@ -97,16 +97,30 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
-    /* ===== 欢迎通知（注册时调用） ===== */
+    /* ===== 首次登录欢迎（注册后第一次登录时调用） ===== */
 
     @Transactional
-    public void createWelcomeNotification(User user) {
+    public void sendFirstLoginGreeting(User user, int rank) {
         Notification n = new Notification();
         n.setUserId(user.getId());
-        n.setTitle("欢迎加入林蛮记账！");
-        n.setContent("感谢注册林蛮记账，开始记录你的每一笔收支吧！如有问题请通过意见反馈联系我们。");
+        n.setTitle("欢迎加入记账大王！");
+        n.setContent("恭喜你成为记账大王的第 " + rank + " 位用户！开始记录你的每一笔收支吧～");
         n.setIsRead(false);
         n.setType(NotificationType.WELCOME);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(n);
+    }
+
+    /* ===== 事件通知（非固定时间节点） ===== */
+
+    @Transactional
+    public void sendFirstBillNotification(Long userId) {
+        Notification n = new Notification();
+        n.setUserId(userId);
+        n.setTitle("🎉 第一笔账单已记录");
+        n.setContent("你刚刚记下了在记账大王的第 1 笔账单，记账好习惯从现在开始养成！");
+        n.setIsRead(false);
+        n.setType(NotificationType.EVENT);
         n.setCreatedAt(LocalDateTime.now());
         notificationRepository.save(n);
     }

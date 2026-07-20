@@ -31,4 +31,7 @@ public class User {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    @Column(name = "first_login_greeting_sent")
+    private Boolean firstLoginGreetingSent = false; // 首次登录欢迎语是否已发，避免重复
 }

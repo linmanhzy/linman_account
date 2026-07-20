@@ -22,6 +22,9 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+  # §3: 统一 JSON 序列化时区为 Asia/Shanghai，避免服务器默认 UTC 导致时间差 8 小时
+  jackson:
+    time-zone: Asia/Shanghai
 
 springdoc:
   swagger-ui:

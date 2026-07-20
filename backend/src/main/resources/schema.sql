@@ -121,3 +121,10 @@ SET @sql_ll = IF(@has_ll = 0, "ALTER TABLE user ADD COLUMN last_login_at DATETIM
 PREPARE stmt FROM @sql_ll;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- M7: 首次登录欢迎标记（兼容旧库）
+SET @has_flg = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'user' AND COLUMN_NAME = 'first_login_greeting_sent');
+SET @sql_flg = IF(@has_flg = 0, "ALTER TABLE user ADD COLUMN first_login_greeting_sent TINYINT(1) NOT NULL DEFAULT 0 AFTER last_login_at", 'SELECT 1');
+PREPARE stmt FROM @sql_flg;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

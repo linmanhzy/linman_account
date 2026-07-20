@@ -88,7 +88,7 @@ class GameScoreControllerTest {
 
     @Test
     void leaderboard_returnsOk() throws Exception {
-        when(service.leaderboard(anyInt())).thenReturn(List.of());
+        when(service.leaderboard(anyInt(), any())).thenReturn(List.of());
         mvc.perform(get("/api/game/leaderboard")).andExpect(status().isOk());
     }
 }

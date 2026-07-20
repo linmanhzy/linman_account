@@ -4,12 +4,14 @@ import com.wangxinchen.dawang.dto.NotificationRequest;
 import com.wangxinchen.dawang.dto.NotificationResponse;
 import com.wangxinchen.dawang.dto.UnreadCountResponse;
 import com.wangxinchen.dawang.entity.Notification;
+import com.wangxinchen.dawang.entity.NotificationType;
 import com.wangxinchen.dawang.entity.Role;
 import com.wangxinchen.dawang.entity.User;
 import com.wangxinchen.dawang.repository.NotificationRepository;
 import com.wangxinchen.dawang.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -87,5 +89,36 @@ class NotificationServiceTest {
         assertEquals(1, list.size());
         assertEquals("标题", list.get(0).getTitle());
         assertFalse(list.get(0).getIsRead());
+    }
+
+    // ===== §2.3 欢迎 + 第 N 位 =====
+    @Test
+    void sendFirstLoginGreeting_shouldSaveWelcomeNotificationWithRank() {
+        User user = new User();
+        user.setId(10L);
+        user.setUsername("tester");
+
+        notificationService.sendFirstLoginGreeting(user, 3);
+
+        ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, times(1)).save(cap.capture());
+        Notification saved = cap.getValue();
+        assertEquals(10L, saved.getUserId());
+        assertEquals(NotificationType.WELCOME, saved.getType());
+        assertTrue(saved.getTitle().contains("欢迎"));
+        assertTrue(saved.getContent().contains("第 3 位"));
+    }
+
+    // ===== §2.4 第一笔账单 =====
+    @Test
+    void sendFirstBillNotification_shouldSaveEventNotification() {
+        notificationService.sendFirstBillNotification(11L);
+
+        ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, times(1)).save(cap.capture());
+        Notification saved = cap.getValue();
+        assertEquals(11L, saved.getUserId());
+        assertEquals(NotificationType.EVENT, saved.getType());
+        assertTrue(saved.getTitle().contains("第一笔"));
     }
 }
