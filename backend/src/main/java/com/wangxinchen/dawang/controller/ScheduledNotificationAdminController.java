@@ -77,6 +77,10 @@ public class ScheduledNotificationAdminController {
         sn.setTitle(req.getTitle());
         sn.setContent(req.getContent());
         sn.setFrequency(req.getFrequency());
+        // ONCE 频率：与 create 一致，保存为 disabled 记录（被列表过滤、调度器跳过、不重发），避免“永不触发却显示已发送”的幽灵记录
+        if (Frequency.ONCE.equals(req.getFrequency())) {
+            sn.setEnabled(false);
+        }
         sn.setSendTime(req.getSendTime());
         sn.setSendDate(req.getSendDate());
         sn.setType(req.getType() != null ? req.getType() : NotificationType.DAILY);

@@ -37,16 +37,6 @@ export async function replyFeedback(id: number, reply: string): Promise<Feedback
   return client.put<FeedbackResponse>(`/api/admin/feedback/${id}/reply`, { reply })
 }
 
-// ===== 通知管理 =====
-
-export async function sendNotification(params: {
-  title: string
-  content: string
-  targetUserId?: number | null
-}): Promise<void> {
-  return client.post<void>('/api/admin/notifications', params)
-}
-
 // ===== 用户列表（通知选择器） =====
 
 export async function getAllUsers(): Promise<{ id: number; username: string }[]> {

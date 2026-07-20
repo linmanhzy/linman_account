@@ -680,6 +680,7 @@ function MergedNotifier() {
   const [editForm] = Form.useForm()
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editing, setEditing] = useState<ScheduledNotification | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -735,8 +736,16 @@ function MergedNotifier() {
   }
 
   const handleEdit = async () => {
+    if (!editing) return
+    let values
     try {
-      const values = await editForm.validateFields()
+      values = await editForm.validateFields()
+    } catch {
+      // 表单校验失败：antd 已高亮字段错误，无需额外提示
+      return
+    }
+    setSaving(true)
+    try {
       const req: ScheduledNotificationRequest = {
         title: values.title,
         content: values.content,
@@ -744,14 +753,17 @@ function MergedNotifier() {
         sendTime: values.sendTime ? values.sendTime.format('HH:mm:ss') : '09:00:00',
         sendDate: values.sendDate ? values.sendDate.format('YYYY-MM-DD') : null,
         type: values.type || 'DAILY',
-        targetUserId: editing?.targetUserId || null,
+        targetUserId: editing.targetUserId || null,
       }
-      await updateScheduledNotification(editing!.id, req)
+      await updateScheduledNotification(editing.id, req)
       message.success('已更新')
+      setEditing(null)
       setEditModalOpen(false)
       load()
-    } catch {
-      // validation error
+    } catch (e: any) {
+      message.error(e?.message || '更新失败，请重试')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -896,6 +908,7 @@ function MergedNotifier() {
 
       {/* 编辑弹窗 */}
       <Modal title="编辑定时通知" open={editModalOpen}
+        confirmLoading={saving}
         onCancel={() => setEditModalOpen(false)} onOk={handleEdit} destroyOnClose>
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="标题" rules={[{ required: true }]}>
