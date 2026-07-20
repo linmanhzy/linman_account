@@ -100,6 +100,12 @@
 ### 坑 3.6：`.env` 没填或 JWT_SECRET 手打会启动失败
 - **固定解法**：服务器 `/opt/account_book/.env` 必须填 `DB_PASSWORD`、`JWT_SECRET`(`openssl rand -base64 32` 生成，别手打)、`ADMIN_PASSWORD`、`CORS_ORIGINS`、`APP_VERSION=latest`。JWT_SECRET 太短后端起不来。
 
+### 坑 3.7：CD 在服务器 `docker pull` 阶段 `Run Command Timeout` ✅已确认（首次部署 v1.0.2 实测）
+- **现象**：`applescott/ssh-action` 跑到 `docker pull ghcr.io/...` 时卡在某镜像层，最终报 `Run Command Timeout`、exit 1。
+- **根因**：(1) ghcr.io 在国内服务器拉取极慢，Spring Boot 后端大层几百 MB 常超默认 10 分钟；(2) 脚本额外 `docker pull ...:latest`（compose 只用 `APP_VERSION`，`:latest` 永不引用），下载量翻倍雪上加霜。
+- **固定解法**：`deploy.yml` 的 ssh-action 显式加 `command_timeout: 30m`；把 4 次显式 `docker pull`（含 `:latest`）换成 `docker compose --env-file .env pull`（只拉 compose 实际引用的版本化镜像）。下载量减半 + 超时放宽 3 倍即可过首拉。
+- **AI 提醒**：若 30m 仍超时，说明 ghcr 基本被墙，应改用阿里云 ACR 等国内可达仓库（`deploy.yml` 改推 ACR + `docker-compose.yml` 镜像改 ACR 地址 + 服务器 `docker login` ACR）。`mysql:8.0` 由 `docker compose pull` 一并发拉，一般已缓存。
+
 ---
 
 ## 4. 给新机器 / CI 的"一键避坑"配置（直接抄）

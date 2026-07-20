@@ -86,17 +86,17 @@ jobs:
           host: ${{ secrets.host_ip }}         # 服务器 IP 或域名
           username: ${{ secrets.host_username }}  # 服务器 SSH 登录用户名
           key: ${{ secrets.my_siyao }}          # 服务器 SSH 私钥
+          # ghcr.io 在国内拉取较慢，首次部署大镜像容易超过默认 10 分钟超时，放宽到 30 分钟
+          command_timeout: 30m
           script: |
             cd /opt/account_book
 
             # 更新镜像版本号到 .env，让 compose 拉取正确版本
             sed -i "s/^APP_VERSION=.*/APP_VERSION=${{ github.event.inputs.version }}/" .env
 
-            # 拉取指定版本 + latest 标签镜像（后端 + 前端）
-            docker pull ghcr.io/${{ github.repository }}/account-book:${{ github.event.inputs.version }}
-            docker pull ghcr.io/${{ github.repository }}/account-book:latest
-            docker pull ghcr.io/${{ github.repository }}/account-book-frontend:${{ github.event.inputs.version }}
-            docker pull ghcr.io/${{ github.repository }}/account-book-frontend:latest
+            # 只拉取 compose 实际引用的镜像（后端 + 前端，按 APP_VERSION 指定版本）。
+            # 不再额外拉取 :latest（compose 不使用），下载量减半，避免 SSH 命令超时。
+            docker compose --env-file .env pull
 
             # 重启所有新镜像容器（包括 db，已运行则跳过；确保 backend 的 depends_on: db healthy 不被阻塞）
             docker compose --env-file .env up -d db backend nginx || true
