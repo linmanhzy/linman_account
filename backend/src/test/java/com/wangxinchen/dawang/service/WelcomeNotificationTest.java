@@ -1,6 +1,5 @@
 package com.wangxinchen.dawang.service;
 
-import com.wangxinchen.dawang.dto.AuthResponse;
 import com.wangxinchen.dawang.dto.LoginRequest;
 import com.wangxinchen.dawang.dto.RegisterRequest;
 import com.wangxinchen.dawang.entity.Role;
@@ -41,7 +40,7 @@ class WelcomeNotificationTest {
         authService = new AuthService(userRepository, passwordEncoder, jwtUtil, notificationService);
     }
 
-    private User baseUser(Long id, String username, LocalDateTime createdAt, boolean greeted) {
+    private User baseUser(Long id, String username, LocalDateTime createdAt) {
         User u = new User();
         u.setId(id);
         u.setUsername(username);
@@ -49,12 +48,12 @@ class WelcomeNotificationTest {
         u.setRole(Role.USER);
         u.setStatus(UserStatus.ENABLED);
         u.setCreatedAt(createdAt);
-        u.setFirstLoginGreetingSent(greeted);
         return u;
     }
 
+    // 注册完成即向新用户本人发送欢迎语（第 N 位）
     @Test
-    void register_doesNotSendWelcomeNotification() {
+    void register_sendsWelcomeNotificationToNewUser() {
         RegisterRequest req = new RegisterRequest();
         req.setUsername("newuser");
         req.setPassword("pass123");
@@ -70,20 +69,46 @@ class WelcomeNotificationTest {
 
         authService.register(req);
 
-        // 欢迎语改为「首次登录」时发送，注册时不应发
-        verify(notificationService, never()).sendFirstLoginGreeting(any(), anyInt());
+        ArgumentCaptor<User> userCap = ArgumentCaptor.forClass(User.class);
+        ArgumentCaptor<Integer> rankCap = ArgumentCaptor.forClass(Integer.class);
+        verify(notificationService).sendRegistrationWelcome(userCap.capture(), rankCap.capture());
+
+        assertEquals(1L, userCap.getValue().getId(), "欢迎语必须发给刚注册的新用户本人");
     }
 
+    // 欢迎语中的「第 N 位」由 countByCreatedAtLessThanEqual 决定
     @Test
-    void login_sendsFirstLoginGreetingWithRank() {
+    void register_computesRankByCreatedAt() {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("rankuser");
+        req.setPassword("pass123");
+
+        when(userRepository.existsByUsername("rankuser")).thenReturn(false);
+        when(passwordEncoder.encode("pass123")).thenReturn("enc");
+        when(userRepository.save(any(User.class))).thenAnswer(a -> {
+            User u = a.getArgument(0);
+            u.setId(9L);
+            u.setCreatedAt(LocalDateTime.of(2026, 1, 1, 8, 0));
+            return u;
+        });
+        when(userRepository.countByCreatedAtLessThanEqual(any(LocalDateTime.class))).thenReturn(7L);
+        when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("tok");
+
+        authService.register(req);
+
+        ArgumentCaptor<Integer> rankCap = ArgumentCaptor.forClass(Integer.class);
+        verify(notificationService).sendRegistrationWelcome(any(User.class), rankCap.capture());
+        assertEquals(7, rankCap.getValue(), "应为第 7 位用户");
+    }
+
+    // 登录不再发送欢迎语（已改到注册完成时触发）
+    @Test
+    void login_doesNotSendWelcomeNotification() {
         LocalDateTime t0 = LocalDateTime.of(2026, 1, 1, 8, 0);
-        User u = baseUser(7L, "newuser", t0, false);
+        User u = baseUser(7L, "newuser", t0);
 
         when(userRepository.findByUsername("newuser")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("pass123", "enc")).thenReturn(true);
-        // 原子标记：本次应成功标记（首次登录）
-        when(userRepository.markFirstLoginGreetingSent(7L)).thenReturn(1);
-        when(userRepository.countByCreatedAtLessThanEqual(t0)).thenReturn(5L);
         when(userRepository.save(any(User.class))).thenAnswer(a -> a.getArgument(0));
         when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("tok");
 
@@ -92,31 +117,6 @@ class WelcomeNotificationTest {
         loginReq.setPassword("pass123");
         authService.login(loginReq);
 
-        ArgumentCaptor<User> userCap = ArgumentCaptor.forClass(User.class);
-        ArgumentCaptor<Integer> nthCap = ArgumentCaptor.forClass(Integer.class);
-        verify(notificationService).sendFirstLoginGreeting(userCap.capture(), nthCap.capture());
-
-        assertEquals(5, nthCap.getValue(), "应是第 5 位用户");
-        assertTrue(userCap.getValue().getFirstLoginGreetingSent(), "发完后应标记已发送");
-    }
-
-    @Test
-    void login_doesNotSendGreetingSecondTime() {
-        LocalDateTime t0 = LocalDateTime.of(2026, 1, 1, 8, 0);
-        User u = baseUser(7L, "newuser", t0, true); // 已发过
-
-        when(userRepository.findByUsername("newuser")).thenReturn(Optional.of(u));
-        when(passwordEncoder.matches("pass123", "enc")).thenReturn(true);
-        // 原子标记：返回 0 表示已被标记，不重复发送
-        when(userRepository.markFirstLoginGreetingSent(7L)).thenReturn(0);
-        when(userRepository.save(any(User.class))).thenAnswer(a -> a.getArgument(0));
-        when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("tok");
-
-        LoginRequest loginReq2 = new LoginRequest();
-        loginReq2.setUsername("newuser");
-        loginReq2.setPassword("pass123");
-        authService.login(loginReq2);
-
-        verify(notificationService, never()).sendFirstLoginGreeting(any(), anyInt());
+        verify(notificationService, never()).sendRegistrationWelcome(any(), anyInt());
     }
 }

@@ -93,12 +93,12 @@ class NotificationServiceTest {
 
     // ===== §2.3 欢迎 + 第 N 位 =====
     @Test
-    void sendFirstLoginGreeting_shouldSaveWelcomeNotificationWithRank() {
+    void sendRegistrationWelcome_shouldSaveWelcomeNotificationWithRank() {
         User user = new User();
         user.setId(10L);
         user.setUsername("tester");
 
-        notificationService.sendFirstLoginGreeting(user, 3);
+        notificationService.sendRegistrationWelcome(user, 3);
 
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, times(1)).save(cap.capture());

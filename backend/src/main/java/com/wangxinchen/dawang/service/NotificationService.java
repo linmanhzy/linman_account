@@ -98,10 +98,10 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
-    /* ===== 首次登录欢迎（注册后第一次登录时调用） ===== */
+    /* ===== 新用户注册欢迎（注册完成时调用，发给新用户本人） ===== */
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void sendFirstLoginGreeting(User user, int rank) {
+    public void sendRegistrationWelcome(User user, int rank) {
         Notification n = new Notification();
         n.setUserId(user.getId());
         n.setTitle("欢迎加入记账大王！");

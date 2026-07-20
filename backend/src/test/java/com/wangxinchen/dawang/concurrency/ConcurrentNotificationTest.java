@@ -47,8 +47,7 @@ class ConcurrentNotificationTest extends ConcurrencyTestSupport {
         Auth user = register(username, "Notif@123456");
         this.userToken = user.token();
         this.userId = user.userId();
-        // 触发「首次登录」欢迎通知，使通知总数 = SENT + 1（与设计 §2.3 一致；注册不再发欢迎）
-        login(username, "Notif@123456");
+        // 注册完成时即发送欢迎通知，通知总数 = SENT + 1（与设计 §2.3 一致）
         this.adminToken = login("admin", "admin123456").token();
 
         // 管理员给该用户发送 SENT 条站内信

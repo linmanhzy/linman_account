@@ -346,21 +346,34 @@ class ApiViabilityTest {
         assertEquals(1, meCount, "当前登录用户应恰好被标记为 me=true");
     }
 
-    // §2.3 首次登录欢迎+第N位：@BeforeAll 的首次登录应触发 EVENT 类型欢迎通知
+    // §2.3 注册欢迎+第N位：通过 /api/auth/register 注册新用户，注册完成即应收到 WELCOME 通知
     @Test
-    void welcomeGreeting_sentOnFirstLogin() throws Exception {
-        MvcResult list = mvc.perform(get("/api/notifications").header("Authorization", authHeader()))
+    void welcomeGreeting_sentOnRegistration() throws Exception {
+        String username = "welcome_" + System.nanoTime();
+        String password = "Pass@123";
+
+        // 注册新用户（接口返回 token：前端注册后自动登录）
+        MvcResult reg = mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn();
+        String userToken = objectMapper.readTree(reg.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+
+        MvcResult list = mvc.perform(get("/api/notifications").header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode arr = objectMapper.readTree(list.getResponse().getContentAsByteArray()).path("data");
         boolean found = false;
         for (JsonNode n : arr) {
-            if (n.path("title").asText().contains("欢迎")) {
+            if ("WELCOME".equals(n.path("type").asText()) && n.path("title").asText().contains("欢迎")) {
                 found = true;
                 break;
             }
         }
-        assertTrue(found, "首次登录后应有欢迎+第N位通知, 实际: " + list.getResponse().getContentAsString());
+        assertTrue(found, "注册完成后新用户应收到欢迎+第N位通知, 实际: " + list.getResponse().getContentAsString());
     }
 
     // §2.4 第一笔账单：用专属新用户创建首条账单后，应收到「第一笔账单」事件通知

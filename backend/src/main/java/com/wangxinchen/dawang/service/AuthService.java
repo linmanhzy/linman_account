@@ -41,6 +41,9 @@ public class AuthService {
         user.setCreatedAt(LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
         User saved = userRepository.save(user);
+        // 注册完成即向新用户本人发送欢迎语（第 N 位用户），收件人毫无歧义
+        int rank = (int) userRepository.countByCreatedAtLessThanEqual(saved.getCreatedAt());
+        notificationService.sendRegistrationWelcome(saved, rank);
         return buildAuth(saved);
     }
 
@@ -54,14 +57,6 @@ public class AuthService {
             throw new BizException(403, "该账户已被禁用，请联系管理员");
         }
         user.setLastLoginAt(LocalDateTime.now());
-        // 注册后首次登录：发送欢迎语（记账大王）并告知第 N 位用户，仅一次
-        // 通过数据库原子 UPDATE WHERE 避免并发重复发送
-        int updated = userRepository.markFirstLoginGreetingSent(user.getId());
-        if (updated > 0) {
-            user.setFirstLoginGreetingSent(true); // 保持实体与 DB 一致
-            int rank = (int) userRepository.countByCreatedAtLessThanEqual(user.getCreatedAt());
-            notificationService.sendFirstLoginGreeting(user, rank);
-        }
         userRepository.save(user);
         return buildAuth(user);
     }
