@@ -25,9 +25,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": "apk",
     "android": {
-      "autoIncrementVersionCode": true,
+      "autoIncrementVersionCode": false,
       "minSdkVersion": 24
     },
     "icon": [

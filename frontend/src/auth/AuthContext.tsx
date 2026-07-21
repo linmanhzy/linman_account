@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
-import { tokenStore } from '../api/client'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { tokenStore, setUnauthorizedHandler } from '../api/client'
 import { login as apiLogin, register as apiRegister, LoginResult } from '../api/auth'
 
 interface AuthValue {
@@ -27,6 +28,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => tokenStore.get())
   const [username, setUsername] = useState<string | null>(saved.username)
   const [role, setRole] = useState<string | null>(saved.role)
+
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // 401 时由 client.ts 调用：跳到登录页并记住来源，避免整页刷新丢表单
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      navigate('/login', { replace: true, state: { from: location.pathname } })
+    })
+    return () => setUnauthorizedHandler(() => {})
+  }, [navigate, location])
 
   const apply = (res: LoginResult) => {
     tokenStore.set(res.token)

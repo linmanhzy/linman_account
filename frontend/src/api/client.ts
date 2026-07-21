@@ -20,6 +20,13 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 }
 
+// 401 跳转处理器：由 AuthProvider 注册（携带当前路由，登录后可跳回原页面）。
+// 未注册时回退到整页跳转，保证向后兼容。
+let unauthorizedHandler: (() => void) | null = null
+export function setUnauthorizedHandler(fn: () => void) {
+  unauthorizedHandler = fn
+}
+
 const raw = axios.create({
   baseURL: API_BASE,
   timeout: 15000,
@@ -49,7 +56,13 @@ raw.interceptors.response.use(
     if (status === 401) {
       tokenStore.clear()
       localStorage.removeItem('lm_profile')
-      window.location.href = '/login'
+      // 优先走注入式跳转（保留当前路由，避免整页刷新丢表单）；
+      // 未注册 handler 时回退整页跳转。
+      if (unauthorizedHandler) {
+        unauthorizedHandler()
+      } else {
+        window.location.href = '/login'
+      }
     }
     const msg = error.response?.data?.message || error.message || '网络错误，请确认后端已启动'
     return Promise.reject(new Error(msg))

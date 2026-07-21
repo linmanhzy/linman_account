@@ -11,5 +11,14 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          antd: ["antd", "@ant-design/icons"],
+          echarts: ["echarts", "echarts-for-react"],
+        },
+      },
+    },
   },
 });

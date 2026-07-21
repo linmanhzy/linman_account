@@ -159,7 +159,38 @@ JAVA_OPTS: "-Xmx256m -XX:MaxMetaspaceSize=128m"
 
 ---
 
+## 6. 真机调试坑（Tauri Android App 连本机/局域网后端）✅已确认
+
+只在「手机 App 连电脑本机/局域网后端」调试时遇到；docker 全套部署（前端 nginx 反代）不涉及。
+
+### 坑 6.1：后端 CORS 改了不重启 = 白改
+- **现象**：App 登录被 `blocked by CORS policy` 拦，但手机浏览器直开 `/api/health` 却显示 ok。
+- **根因**：CORS 是后端**启动时**才读入配置。地址栏直开 health 不算跨域、不验证 CORS，这是"health 能通、登录却不行"的典型表现。改 `application.yml`(本地跑) 或 `CORS_ORIGINS` 环境变量(本地/docker) 后**必须重启后端**才生效。
+- **AI 提醒**：docker 跑后端时改 `application.yml` 源文件无效（jar 已固化进镜像），要改 `docker-compose` 用的 `.env` 的 `CORS_ORIGINS` 变量并重启容器；本地 `mvn`/`java` 跑改源文件有效，但要重启进程。
+
+### 坑 6.2：Tauri v2 安卓 WebView 真实 Origin 是 `https://tauri.localhost`
+- **现象**：`VITE_API_BASE` 地址对了、后端也起了，App 内登录仍被 CORS 拦。
+- **根因**：App 内网页 fetch 带 `Origin: https://tauri.localhost`，不在后端允许源列表里就被拦。后端 `SecurityConfig.corsConfigurationSource()` 用 `setAllowedOriginPatterns`（来源 `myapp.cors.allowed-origins`，可用环境变量 `CORS_ORIGINS` 覆盖）。
+- **固定解法**：把 `https://tauri.localhost` 加进允许源；内测图省事直接写 `*` 通配（`allowedOriginPatterns` + `allowCredentials(true)` 下 `*` 合法，Spring 回显实际 origin，不影响凭据）。**生产必须换回具体域名，别留 `*`**。
+
+### 坑 6.3：`VITE_API_BASE` 打包时写死，改地址必重打包 APK
+- **现象**：改了 `.env` 的 `VITE_API_BASE` 指向电脑 IP，装到手机还是连不上。
+- **根因**：`VITE_API_BASE` 是 Vite **编译期**替换进 App 的固定字符串，运行时改 `.env` 无效。手机上的 `127.0.0.1` 指手机自己，必须用电脑局域网真实 IP。
+- **固定解法**：先改 `frontend/.env` 的 `VITE_API_BASE` → 再跑 `build_android.bat` 重打包 → 重装新 APK。**顺序错（先构建后改 .env）则 APK 里还是旧地址**。`android-build.log` 末尾 `BUILD_EXIT_CODE=0` 才算成功。
+
+### 坑 6.4：验证 CORS 最快用 curl，不用 chrome://inspect
+- 后端起好后，电脑跑：
+  ```
+  curl -i -X OPTIONS "http://localhost:8080/api/auth/login" -H "Origin: https://tauri.localhost" -H "Access-Control-Request-Method: POST"
+  ```
+- 看响应头有无 `Access-Control-Allow-Origin: https://tauri.localhost`（或回显的 origin）→ 有则 CORS 已放行；没有则配置没生效（回头查坑 6.1）。比手机 USB 调试 `chrome://inspect` 看 Console 快得多，先过这关再谈别的。
+
+### 坑 6.5：「能打开 App 前端页面」≠「能联网」
+- App 把打包进去的本地网页资源显示出来（登录页能看）是正常的，不代表 `VITE_API_BASE` 地址对。真正联网要看登录请求发出的 URL（chrome://inspect 的 Network）是不是电脑 IP。
+
+---
+
 ## 附：本文件覆盖 vs 未覆盖
 
-- ✅ 已覆盖：安卓构建 3 大阻塞（1.1–1.3）、git SSH 封锁、ghcr 权限、JVM Metaspace、MySQL 3307、依赖顺序、首次 scp、登录拉镜像、`.env`、前端反代形态。
+- ✅ 已覆盖：安卓构建 3 大阻塞（1.1–1.3）、git SSH 封锁、ghcr 权限、JVM Metaspace、MySQL 3307、依赖顺序、首次 scp、登录拉镜像、`.env`、前端反代形态、**真机调试 CORS+IP 直连重打包（见第 6 节）**。
 - ⚠️ 未覆盖（文档里没明确记录、若后续遇到请补进本节）：CD 实际跑通过程中的具体报错（如镜像层缓存失败、runner 磁盘满）、release 签名配置（当前只打 debug，上架需 keystore）、HTTPS/域名反代（当前直 IP:8080，未接 Nginx/TLS）。
