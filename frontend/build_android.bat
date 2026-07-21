@@ -41,6 +41,15 @@ if "%CFG%"=="server" (
   echo [build_android] LOCAL 模式，使用 .env 中的本地地址
 )
 
+REM ---- 2.5) 确保 release 包放行明文 HTTP 且已签名（写回 gen/android/build.gradle.kts）----
+REM 关键：若曾跑过 `tauri android init` 重生成 gen/android，会抹掉手工改动；
+REM 这里统一用可单测的脚本补回（与 build_android.sh/CI 同一份逻辑），避免 release 包静默禁 http。
+if exist "src-tauri\gen\android\app\build.gradle.kts" (
+  python3 scripts\inject_android_release_config.py src-tauri\gen\android\app\build.gradle.kts
+) else (
+  echo [build_android] 警告：未找到 gen/android/build.gradle.kts，签名/明文放行跳过（首次需先 tauri android init）
+)
+
 REM ---- 3) 构建（VITE_API_BASE 作为进程环境变量被子进程继承，写死进 APK）----
 call npx tauri android build --split-per-abi > d:\itcast\vibeCoding\vibeCoding_HeiMa\account_book\frontend\android-build.log 2>&1
 echo BUILD_EXIT_CODE=%ERRORLEVEL% >> d:\itcast\vibeCoding\vibeCoding_HeiMa\account_book\frontend\android-build.log

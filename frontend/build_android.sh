@@ -61,63 +61,18 @@ storeFile=release-key.jks
 EOF
 echo "==> [3/4] 已写入签名配置 (alias=$ANDROID_KEY_ALIAS)"
 
-# ---------- 3.5) 把 release 签名配置写回 build.gradle.kts ----------
-# 关键：tauri android init 会重新生成 gen/android，抹掉任何手工签名块。
-# 若不写回，release 包将变成未签名 → Android 直接拒绝安装。
-# 这里用 Python 强制把“读取 app/keystore.properties”的签名块注入，
-# 无论 init 生成的是哪种默认模板都能生效。
+# ---------- 3.5) 把 release 签名配置 + 明文 HTTP 放行写回 build.gradle.kts ----------
+# 关键：tauri android init 会重新生成 gen/android，抹掉任何手工改动。
+# 若不写回签名块，release 包未签名 → Android 直接拒绝安装；
+# 若不写回 release 的 usesCleartextTraffic="true"，release 包会禁止 http://，
+# App 连不上只提供 http 的服务器后端（该问题此前静默存在，靠 Tauri 模板 defaultConfig 继承兜底）。
+# 注入逻辑抽到 scripts/inject_android_release_config.py，可单测（见 tests/）。
 APP_GRADLE="$APP_DIR/build.gradle.kts"
-python3 - "$APP_GRADLE" <<'PY'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-
-ours = '''    // A2: release 签名配置（CI 自动注入，勿手改）
-    signingConfigs {
-        create("release") {
-            val keystorePropsFile = rootProject.file("app/keystore.properties")
-            if (keystorePropsFile.exists()) {
-                val props = Properties().apply { keystorePropsFile.inputStream().use { load(it) } }
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
-                storeFile = rootProject.file("app/" + props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
-            }
-        }
-    }
-'''
-
-# 1) 删除已存在的 signingConfigs { ... } 块（无论 init 生成的是哪种）
-start = s.find("signingConfigs {")
-if start != -1:
-    depth = 0
-    i = s.index("{", start)
-    j = i
-    while j < len(s):
-        if s[j] == "{":
-            depth += 1
-        elif s[j] == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        j += 1
-    s = s[:start] + s[j + 1:]
-
-# 2) 在 buildTypes { 之前插入我们的签名块
-anchor = "    buildTypes {"
-if anchor in s:
-    s = s.replace(anchor, ours + "\n\n" + anchor, 1)
-
-# 3) 确保 release 块引用该签名配置
-ref = 'signingConfig = signingConfigs.getByName("release")'
-if 'getByName("release")' in s and ref not in s:
-    a = s.index('        getByName("release") {')
-    k = a + len('        getByName("release") {')
-    s = s[:k] + "\n            " + ref + s[k:]
-
-open(p, "w", encoding="utf-8").write(s)
-print("==> 已强制写入 release 签名配置（读取 app/keystore.properties）")
-PY
+if [ ! -f "$APP_GRADLE" ]; then
+  echo "错误：未找到 $APP_GRADLE，tauri android init 可能失败" >&2
+  exit 1
+fi
+python3 scripts/inject_android_release_config.py "$APP_GRADLE"
 
 # ---------- 4) 构建 APK ----------
 echo "==> [4/4] 构建 APK (--split-per-abi)"
