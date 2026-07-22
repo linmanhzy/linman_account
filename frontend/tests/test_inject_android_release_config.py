@@ -85,6 +85,33 @@ TAURI_TEMPLATE_WITH_SIGNING = """android {
 }
 """
 
+# 模拟 Tauri v2 生成的 RustWebView.kt（init 块无 mixedContentMode）
+RUST_WEBVIEW_TEMPLATE = '''package com.wangxinchen.dawang
+
+import android.annotation.SuppressLint
+import android.webkit.*
+import android.content.Context
+
+@SuppressLint("RestrictedApi")
+class RustWebView(context: Context, val initScripts: Array<String>, val id: String): WebView(context) {
+    init {
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.setGeolocationEnabled(true)
+        settings.databaseEnabled = true
+        settings.mediaPlaybackRequiresUserGesture = false
+        settings.javaScriptCanOpenWindowsAutomatically = true
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+        }
+    }
+
+    fun loadUrlMainThread(url: String) {
+        post { loadUrl(url) }
+    }
+}
+'''
+
 # 模拟 Tauri v2 生成的 AndroidManifest.xml
 ANDROID_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -117,8 +144,9 @@ def _write_gradle(tmp_path, content):
     return p
 
 
-def _setup_app_dir(tmp_root, gradle_content=TAURI_TEMPLATE, manifest_content=ANDROID_MANIFEST_TEMPLATE):
-    """创建模拟的 android/app 目录结构。"""
+def _setup_app_dir(tmp_root, gradle_content=TAURI_TEMPLATE, manifest_content=ANDROID_MANIFEST_TEMPLATE,
+                   webview_content=RUST_WEBVIEW_TEMPLATE):
+    """创建模拟的 android/app 目录结构（含 RustWebView.kt）。"""
     app_dir = os.path.join(tmp_root, "app")
     os.makedirs(os.path.join(app_dir, "src", "main", "res", "xml"), exist_ok=True)
 
@@ -131,6 +159,13 @@ def _setup_app_dir(tmp_root, gradle_content=TAURI_TEMPLATE, manifest_content=AND
     manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(manifest_content)
+
+    # 写 RustWebView.kt（模拟 Tauri 生成的文件结构）
+    webview_dir = os.path.join(app_dir, "src", "main", "java", "com", "wangxinchen", "dawang", "generated")
+    os.makedirs(webview_dir, exist_ok=True)
+    webview_path = os.path.join(webview_dir, "RustWebView.kt")
+    with open(webview_path, "w", encoding="utf-8") as f:
+        f.write(webview_content)
 
     return gradle_path, manifest_path, app_dir
 
@@ -241,6 +276,64 @@ def test_inject_all_also_does_gradle_injection(tmp_path):
     assert "signingConfigs {" in out, "inject_all 必须注入签名块"
     i, j = inj._find_block(out, 'getByName("release") {')
     assert inj.CLEARTEXT_LINE in out[i:j + 1], "inject_all 必须放行 release HTTP"
+
+
+# ====== RustWebView.kt mixedContentMode 注入测试 ======
+
+def test_webview_mixed_content_injected(tmp_path):
+    """验证 RustWebView.kt 中被注入了 mixedContentMode 设置。"""
+    gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
+    inj.inject_all(gradle_path)
+
+    # 找到 RustWebView.kt
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    webview_path = None
+    for root, dirs, files in os.walk(java_dir):
+        if "RustWebView.kt" in files:
+            webview_path = os.path.join(root, "RustWebView.kt")
+            break
+
+    assert webview_path is not None, "RustWebView.kt 必须存在"
+    content = open(webview_path, encoding="utf-8").read()
+    assert inj.MIXED_CONTENT_LINE in content, (
+        "RustWebView.kt 必须包含 mixedContentMode = MIXED_CONTENT_ALWAYS_ALLOW"
+    )
+
+
+def test_webview_mixed_content_idempotent(tmp_path):
+    """验证 RustWebView.kt 重复注入不会产生重复行。"""
+    gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
+    inj.inject_all(gradle_path)
+    inj.inject_all(gradle_path)
+
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    for root, dirs, files in os.walk(java_dir):
+        if "RustWebView.kt" in files:
+            wp = os.path.join(root, "RustWebView.kt")
+            content = open(wp, encoding="utf-8").read()
+            assert content.count(inj.MIXED_CONTENT_LINE) == 1, (
+                "重复注入不能产生重复的 mixedContentMode 行"
+            )
+            break
+
+
+def test_webview_init_still_intact(tmp_path):
+    """验证注入后 RustWebView.kt 原始 init 逻辑未损坏。"""
+    gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
+    inj.inject_all(gradle_path)
+
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    for root, dirs, files in os.walk(java_dir):
+        if "RustWebView.kt" in files:
+            content = open(os.path.join(root, "RustWebView.kt"), encoding="utf-8").read()
+            # 原有设置依然存在
+            assert "settings.javaScriptEnabled = true" in content
+            assert "settings.domStorageEnabled = true" in content
+            assert "settings.javaScriptCanOpenWindowsAutomatically = true" in content
+            assert "class RustWebView" in content
+            # 注入的新行也存在
+            assert inj.MIXED_CONTENT_LINE in content
+            break
 
 
 # ------- 不依赖 pytest 的直跑入口 -------

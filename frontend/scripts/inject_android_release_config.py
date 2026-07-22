@@ -211,6 +211,69 @@ def inject(path):
     print(f"==> 已注入 release 签名与明文 HTTP 放行：{path}")
 
 
+MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
+
+
+def _inject_webview_mixed_content(app_dir):
+    """
+    在 RustWebView.kt 的 init 块中注入混合内容放行设置。
+
+    Tauri v2 生成的 RustWebView.kt 设置了各种 WebView 参数
+    （javaScriptEnabled、domStorageEnabled 等），但唯独没有设置
+    mixedContentMode。WebView 默认值是 MIXED_CONTENT_NEVER_ALLOW，
+    导致从 https://tauri.localhost 向 http:// 后端发请求时被 WebView
+    渲染引擎静默拦截 → axios 收到 Network Error，请求从未离开手机。
+
+    本函数在 init 块末尾插入：
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+    幂等：已存在则跳过。
+    """
+    # 在 java 目录树上搜索 RustWebView.kt
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    webview_path = None
+    for root, dirs, files in os.walk(java_dir):
+        if "RustWebView.kt" in files:
+            webview_path = os.path.join(root, "RustWebView.kt")
+            break
+
+    if not webview_path:
+        print("==> [警告] 未找到 RustWebView.kt，跳过 WebView mixedContentMode 注入")
+        return
+
+    content = open(webview_path, encoding="utf-8").read()
+
+    # 幂等检查
+    if MIXED_CONTENT_LINE in content:
+        print(f"==> WebView mixedContentMode 已设置，跳过：{webview_path}")
+        return
+
+    # 在 init 块的最后一个 settings 行之后插入
+    # 目标位置：settings.javaScriptCanOpenWindowsAutomatically = true 之后
+    marker = "settings.javaScriptCanOpenWindowsAutomatically = true"
+    pos = content.find(marker)
+    if pos == -1:
+        # 回退到 mediaPlaybackRequiresUserGesture（以防未来 Tauri 模板变化）
+        marker = "settings.mediaPlaybackRequiresUserGesture = false"
+        pos = content.find(marker)
+    if pos == -1:
+        print(f"==> [警告] RustWebView.kt 结构未知，无法注入 mixedContentMode")
+        return
+
+    # 找到 marker 所在行的末尾
+    end_of_line = content.find("\n", pos)
+    if end_of_line == -1:
+        print(f"==> [警告] RustWebView.kt 格式异常")
+        return
+
+    indent = "        "  # 8 空格缩进，与现有 settings 行对齐
+    new_line = f"\n{indent}{MIXED_CONTENT_LINE}"
+    content = content[:end_of_line] + new_line + content[end_of_line:]
+
+    open(webview_path, "w", encoding="utf-8").write(content)
+    print(f"==> 已注入 WebView mixedContentMode → {webview_path}")
+
+
 def inject_all(build_gradle_path):
     """
     执行完整注入流程（以上所有步骤）。
@@ -222,6 +285,7 @@ def inject_all(build_gradle_path):
         - app_dir: build.gradle.kts 所在目录（即 android/app/）
         - AndroidManifest.xml: app_dir/src/main/AndroidManifest.xml
         - res/xml/network_security_config.xml: app_dir/src/main/res/xml/
+        - RustWebView.kt: app_dir/src/main/java/**/generated/RustWebView.kt
     """
     build_gradle_path = os.path.abspath(build_gradle_path)
     app_dir = os.path.dirname(build_gradle_path)
@@ -235,6 +299,9 @@ def inject_all(build_gradle_path):
 
     # 3) 注入到 AndroidManifest.xml
     _inject_nsc_into_manifest(manifest_path, app_dir)
+
+    # 4) 注入 WebView mixedContentMode（解决混合内容拦截）
+    _inject_webview_mixed_content(app_dir)
 
 
 if __name__ == "__main__":
