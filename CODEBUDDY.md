@@ -33,6 +33,7 @@
 - **前端单元测试**：vitest 2.1.0 + jsdom 已配置（`vitest.config.ts`），运行 `cd frontend && npx vitest run`（或 `npm test`）。`tsconfig.json` 已加 `"types": ["vitest/globals"]`。测试文件放在 `src/**/*.test.ts`。
 - **Debug APK 构建**：`build_debug_server.bat` 参照 CD 方案用 `set VITE_API_BASE` 进程环境变量注入（Vite 最高优先级），不再仅依赖 `.env` 文件。支持 `set DEBUG_SERVER_URL=http://你的IP:8080` 覆盖目标地址。构建前校验 URL 格式（必须以 http:// 或 https:// 开头）。
 - **API_BASE 解析**：`src/api/apiBase.ts` 的 `resolveApiBase()` 在 PROD 模式 + VITE_API_BASE 为空时抛出中文详细错误，`showFatalErrorOverlay()` 将错误注入 DOM 顶部红色覆盖层。纯函数可测试（`src/api/apiBase.test.ts`，14 例全绿）。
+- **WebView 混合内容拦截**：Tauri v2 WebView 源是 `https://tauri.localhost`，fetch `http://` 后端会被 WebView 判定为 Mixed Content 拦截→`Network Error`。修复=`inject_android_release_config.py` 自动生成 `network_security_config.xml`（`cleartextTrafficPermitted="true"`）并注入 AndroidManifest.xml（`android:networkSecurityConfig`）。`inject_all()` 为统一入口，`build_android.sh`/`build_debug_server.bat` 无需改动。10 个 Python 单测覆盖（`python3 tests/test_inject_android_release_config.py`）。
 
 ---
 

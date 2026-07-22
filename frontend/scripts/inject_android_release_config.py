@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI 安卓打包注入：对 `tauri android init` 重新生成的 build.gradle.kts 做必要回填。
+"""CI 安卓打包注入：对 `tauri android init` 重新生成的 android 工程做必要回填。
 
 由于 `tauri android init` 会抹掉一切手工改动，本脚本在 init 之后运行，强制保证：
 
@@ -12,9 +12,18 @@
 3) release 签名块读取 app/keystore.properties（由 CI 通过 Secret 注入），
    并保证 release 块引用该签名配置，否则 release 包未签名、Android 直接拒绝安装。
 
+4) **NEW** 生成 res/xml/network_security_config.xml 并注入 AndroidManifest.xml：
+   Tauri v2 的 WebView 源是 https://tauri.localhost（HTTPS 来源），
+   从 HTTPS 页面 fetch http:// 后端会触发 WebView 的「混合内容（Mixed Content）」拦截，
+   请求在 WebView 层被静默阻止（axios 报 Network Error），根本未到达网络层。
+   Android 的 network_security_config 可以精确覆盖 WebView 的混合内容策略，
+   允许特定域（或全局）的明文 HTTP 流量。
+
 本脚本只做纯字符串改写，不依赖 Android / Gradle / NDK 工具链，可被单元测试直接调用。
 用法：python3 inject_android_release_config.py <build.gradle.kts 路径>
 """
+
+import os
 import sys
 
 
@@ -34,6 +43,30 @@ SIGNING_BLOCK = '''    // A2: release 签名配置（CI 自动注入，勿手改
 '''
 
 CLEARTEXT_LINE = 'manifestPlaceholders["usesCleartextTraffic"] = "true"'
+
+NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
+<!-- A2: 自动注入，勿手改 -->
+<!--
+  核心作用：Tauri v2 WebView 源是 https://tauri.localhost，
+  从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
+  Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
+  仅靠 manifest 的 usesCleartextTraffic 不够。
+  
+  详见 docs/debug-build-troubleshooting.md §混合内容拦截
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+'''
+
+# AndroidManifest.xml 的 <application> 标签中要注入的属性
+NSC_ATTR = 'android:networkSecurityConfig="@xml/network_security_config"'
+# 标记注释（用于幂等性检测）
+NSC_COMMENT = '<!-- A2: networkSecurityConfig -->'
 
 
 def _find_block(s, marker):
@@ -67,20 +100,78 @@ def _ensure_cleartext_in_block(s, marker):
     return s[:i + 1] + "\n        " + CLEARTEXT_LINE + s[i + 1:]
 
 
+def _inject_nsc_into_manifest(manifest_path, app_dir):
+    """
+    向 AndroidManifest.xml 的 <application> 标签注入
+    android:networkSecurityConfig="@xml/network_security_config"。
+
+    幂等：如果标签内已存在该属性，跳过。
+    """
+    if not os.path.isfile(manifest_path):
+        print(f"==> [警告] 未找到 AndroidManifest.xml：{manifest_path}，跳过 networkSecurityConfig 注入")
+        return
+
+    s = open(manifest_path, encoding="utf-8").read()
+
+    # 幂等检查：已注入则跳过
+    if NSC_ATTR in s:
+        print(f"==> networkSecurityConfig 已存在，跳过：{manifest_path}")
+        return
+
+    # 找到 <application 标签的结束 '>'
+    app_start = s.find("<application")
+    if app_start == -1:
+        print(f"==> [警告] 未找到 <application 标签：{manifest_path}")
+        return
+
+    # 从 <application 开始找到标签结束的 '>'（注意：可能跨多行）
+    tag_end = s.find(">", app_start)
+    if tag_end == -1:
+        print(f"==> [警告] <application 标签格式异常：{manifest_path}")
+        return
+
+    # 在 '>' 之前插入属性
+    # 格式：在 '>' 前加一个换行 + 缩进 + 属性
+    attr_line = f'\n        {NSC_ATTR}'
+    s = s[:tag_end] + attr_line + s[tag_end:]
+
+    open(manifest_path, "w", encoding="utf-8").write(s)
+    print(f"==> 已注入 networkSecurityConfig → {manifest_path}")
+
+
+def _write_network_security_config(app_dir):
+    """
+    创建 res/xml/network_security_config.xml（幂等：已存在则跳过）。
+    """
+    res_xml_dir = os.path.join(app_dir, "src", "main", "res", "xml")
+    config_file = os.path.join(res_xml_dir, "network_security_config.xml")
+
+    if os.path.isfile(config_file):
+        # 幂等：已存在但内容可能不同，始终覆盖以确保正确
+        pass
+
+    os.makedirs(res_xml_dir, exist_ok=True)
+    open(config_file, "w", encoding="utf-8").write(NETWORK_SECURITY_CONFIG_XML)
+    print(f"==> 已写入 network_security_config.xml → {config_file}")
+
+
 def inject(path):
+    """
+    主注入函数：修改 build.gradle.kts。
+
+    参数：
+        path: build.gradle.kts 的路径
+              （如 src-tauri/gen/android/app/build.gradle.kts）
+
+    同时会自动推断并处理同目录下的 AndroidManifest.xml。
+    """
     s = open(path, encoding="utf-8").read()
 
     # ---- 1) 删除任何已有的 signingConfigs 块（无论 init 生成哪种模板）----
-    # 同时吃掉块后的连续空行，保证重复注入字节级幂等（避免残留空行导致结果不一致）。
-    # 注意：本脚本注入的块以一行业务注释（// A2: ...）开头，删除时要连注释行一起清掉，
-    # 否则重复注入会留下重复注释。
     idx = s.find("signingConfigs {")
     if idx != -1:
-        # 定位包含 signingConfigs { 的整行行首
         nl = s.rfind("\n", 0, idx)
         start = nl + 1
-        # 若紧邻上一行是本项目注入的 // A2 注释，则连注释行一起删除
-        # 注意：用 rfind("\n", 0, nl) 取到注释行“之前”的换行，而非 start 前那个（那是注释行末尾）。
         prev_nl = s.rfind("\n", 0, nl)
         if prev_nl != -1 and s[prev_nl + 1:start].lstrip().startswith("// A2"):
             start = prev_nl + 1
@@ -120,8 +211,34 @@ def inject(path):
     print(f"==> 已注入 release 签名与明文 HTTP 放行：{path}")
 
 
+def inject_all(build_gradle_path):
+    """
+    执行完整注入流程（以上所有步骤）。
+
+    参数：
+        build_gradle_path: build.gradle.kts 的路径
+
+    自动推断的路径：
+        - app_dir: build.gradle.kts 所在目录（即 android/app/）
+        - AndroidManifest.xml: app_dir/src/main/AndroidManifest.xml
+        - res/xml/network_security_config.xml: app_dir/src/main/res/xml/
+    """
+    build_gradle_path = os.path.abspath(build_gradle_path)
+    app_dir = os.path.dirname(build_gradle_path)
+    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
+
+    # 1) 修改 build.gradle.kts（签名 + 明文 HTTP）
+    inject(build_gradle_path)
+
+    # 2) 生成 network_security_config.xml
+    _write_network_security_config(app_dir)
+
+    # 3) 注入到 AndroidManifest.xml
+    _inject_nsc_into_manifest(manifest_path, app_dir)
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法: python3 inject_android_release_config.py <build.gradle.kts 路径>", file=sys.stderr)
         sys.exit(1)
-    inject(sys.argv[1])
+    inject_all(sys.argv[1])

@@ -196,7 +196,7 @@ BUILD COMPLETE
 
 ---
 
-## 七、CD Release 版本检查结论
+## 7.1 CD Release 版本检查结论
 
 | 检查项 | 结果 |
 |--------|------|
@@ -206,4 +206,49 @@ BUILD COMPLETE
 | Vite 编译时 API_BASE 为空的风险 | ❌ 不存在（环境变量注入 + 空值 panic） |
 | `client.ts` (旧版) console.warn 不可见 | ⚠️ 已通过本次修复解决（DOM 覆盖层） |
 
-**结论**：CD Release 版本**无此问题**，不需要修改。本次修复主要针对本地 Debug 构建脚本和行为增强。
+**结论**：CD Release 版本**API_BASE 注入链路无问题**，但存在另一个问题 → 见第八节。
+
+---
+
+## 八、Release APK `Network Error`：WebView 混合内容拦截（2026-07-22 新发现）
+
+### 8.1 现象
+
+CD 产出的 Release APK（`usesCleartextTraffic="true"` 已确认生效）登录时报 `Network Error`。
+
+### 8.2 根因
+
+Tauri v2 Android WebView 的页面源是 `https://tauri.localhost`（HTTPS 来源），前端 JS 向 `http://47.104.152.25:8080` 发 fetch 请求时，Android WebView 将这次 HTTP 请求判定为 **混合内容（Mixed Content）** → 在 WebView 层直接拦截，请求**从未离开手机**。
+
+这是 WebView 自身的安全策略，`android:usesCleartextTraffic="true"` 只控制 App 级别的明文流量权限，**管不到 WebView 内部的混合内容拦截**。
+
+| 层级 | 控制项 | 作用域 |
+|------|--------|--------|
+| App 层 | `android:usesCleartextTraffic="true"` | App 整体的明文 HTTP 权限 |
+| **WebView 层** | 混合内容策略 | **WebView 内部 HTTPS→HTTP 的拦截**（本次问题） |
+
+### 8.3 验证方式
+
+1. 手机 **浏览器** 能打开 `http://47.104.152.25:8080/api/health` → ✅ 网络通
+2. **同一个 APK 内** fetch 同一地址 → ❌ `Network Error` → 说明是 WebView 层拦截
+
+### 8.4 修复方案
+
+新增 Android **`network_security_config.xml`**（Android 官方推荐的域级别安全配置），在其中显式声明 `cleartextTrafficPermitted="true"`，并将其引注入 `AndroidManifest.xml` 的 `<application>` 标签。
+
+**注入脚本更新**：`frontend/scripts/inject_android_release_config.py`
+
+| 新增功能 | 说明 |
+|----------|------|
+| `_write_network_security_config()` | 在 `res/xml/` 下生成 `network_security_config.xml` |
+| `_inject_nsc_into_manifest()` | 在 `AndroidManifest.xml` 的 `<application>` 标签中注入 `android:networkSecurityConfig="@xml/network_security_config"` |
+| `inject_all()` | 统一入口，同时执行 gradle 注入 + NSC 注入 |
+
+> 注意：NSC 注入具有**字节级幂等性**（10 个单测覆盖），重复调用不会产生重复属性。
+
+### 8.5 验证步骤（修复后）
+
+1. 重新触发 CD 构建（服务器端 + APK 打包）
+2. 下载新的 arm64 Release APK
+3. 安装到手机 → 打开 → 用 admin / WXChen5437@ 登录
+4. 预期：**登录成功**，不再报 Network Error

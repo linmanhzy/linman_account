@@ -10,6 +10,13 @@
 
 ## 近期进展
 
+### 2026-07-22 修复 CD Release APK 登录报 `Network Error`（WebView 混合内容拦截）
+- 现象：手机浏览器能访问 `http://47.104.152.25:8080/api/health`（网络通），但 Release APK 内登录报 `Network Error`，后端收到 "Error parsing HTTP request header"（疑似 WebView HTTP→HTTPS 升级后 TLS 握手打到了 Tomcat HTTP 端口）。
+- 根因：Tauri v2 WebView 源是 `https://tauri.localhost`（HTTPS），fetch `http://47.104.152.25:8080` 被 WebView 判定为混合内容（Mixed Content）→ 在 WebView 层拦截，请求未离开手机。`android:usesCleartextTraffic="true"` 只控制 App 层，管不到 WebView 内部的混合内容策略。
+- 修复：**`inject_android_release_config.py`** 新增三个函数：(1) `_write_network_security_config()` 生成 `res/xml/network_security_config.xml`（`cleartextTrafficPermitted="true"`）；(2) `_inject_nsc_into_manifest()` 向 AndroidManifest.xml 注入 `android:networkSecurityConfig` 属性；(3) `inject_all()` 统一入口（向后兼容 `inject()` 旧 API）。`build_android.sh` 和 `build_debug_server.bat` 自动获得 NSC 注入（无需改动，`__main__` 改为调 `inject_all`）。
+- 测试：`tests/test_inject_android_release_config.py` 新增 4 个 NSC 用例（生成/注入/幂等/完整性），共 **10 tests passed, 0 failed**。
+- 排查文档更新：`docs/debug-build-troubleshooting.md` 新增第八章「WebView 混合内容拦截」。
+
 ### 2026-07-22 修复 build_debug_server.bat 产出的 Debug APK 登录报 "Failed to construct 'URL': invalid URL"（TDD 完成）
 - 现象：`build_debug_server.bat` 打完的 Debug APK 在手机登录时抛 "Failed to construct 'URL': invalid URL"，旧版仅写 `.env` 文件注入 VITE_API_BASE，Vite 构建时可能未正确读取导致 API_BASE 回落到空字符串。
 - 根因：仅 `.env` 文件注入（Vite 中等优先级）不可靠；CD 的 `build_android.sh` 用 `export VITE_API_BASE`（进程环境变量，最高优先级）则没问题。
