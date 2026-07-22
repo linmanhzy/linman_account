@@ -1,3 +1,38 @@
+# 林蛮记账 · 全局记忆与经验
+
+> 最后更新：2026-07-22。本文件只保存**经验与全局记忆**（环境、坑位、稳定约定）；项目当前进展/动态请见 **`PROJECT_CURRENT.md`**（仓库根目录）。下半部分（superpowers-zh 标记内）为 IDE 自动生成的技能指引，请勿改动标记内内容。
+
+## 文档分工（必读）
+- **CODEBUDDY.md（本文件）**：经验 + 全局记忆。例：本机环境密码、命令约定、踩坑记录、稳定架构决策。
+- **PROJECT_CURRENT.md**：项目当前状况。例：近期进展、当前在做什么、下一步待办。每次操作都要更新它。
+- 两个文件都在仓库根目录，都会在会话开始时自动加载。
+
+## 自动更新规则（AI 必读 —— 每次操作必须执行）
+> 说明：CodeBuddy 暂无「文件改动触发」的钩子，但 CODEBUDDY.md 与 PROJECT_CURRENT.md 都会在**每次会话开始时自动作为项目指引加载**。因此「自动更新」= 把规则固化进文件，让每个 AI 会话开工前先读到并遵守。
+
+- **每次完成一次操作（改代码、修 bug、落地功能、切换任务）后，立即同时更新两个文件**，不要等一大段工作结束才补：
+  - `CODEBUDDY.md`：若产生**新的经验/全局记忆**（新坑位、环境变化、稳定约定）→ 追加或更新。
+  - `PROJECT_CURRENT.md`：把顶部「最后更新」改成当天，在「近期进展」**最顶部**追加一条带日期的进展（现象 / 根因 / 改动文件 / 验证结果，一句话讲清「改了什么、为什么、怎么验证」）。
+- 小改动也记一笔，保证下次会话能直接拿到最新工作状态，不用重新排查。
+- 只改两文件上半部分，不要动 CODEBUDDY.md 下方 `superpowers-zh` 标记内的内容。
+
+## 项目概况
+- 名称：林蛮记账（多用户联网记账系统）
+- 技术栈：Spring Boot（`backend/`）+ React + Tauri v2（`frontend/`，同一套代码产出 Web 与 Android APK）
+- 当前形态：Web 端 + 安卓 App（内测免费，不上 Google Play，不做 iOS）
+
+## 近期进展
+
+> 项目当前进展与近期动态已迁移至 **`PROJECT_CURRENT.md`**（仓库根目录），请在那里查看与更新；本文件只保留经验与全局记忆。
+
+## 给后续对话的提醒
+- 启动后端：优先在**本机 cmd**（非 codebuddy 终端）跑 `mvn spring-boot:run`，或直接运行 `backend/run-dev.bat`。
+- 改了本机 MySQL root 密码，记得同步改 `run-dev.bat` 里那行密码。
+- 前端命令（`npm install` / `npm run dev` / `build_android.bat`）都在 `frontend/` 目录执行；`.env` 放在 `frontend/` 下。
+- 后端并发测试：JUnit 5 + MockMvc（profile `concurrency`，库 `conctestdb`）与 Locust（backend/tests/loadtest/）两套方案，均已落地。
+
+---
+
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版
 

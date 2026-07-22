@@ -35,6 +35,7 @@ npm-debug.log*
 backend/test_output.txt
 
 # 环境变量与签名密钥（含后端地址、keystore、Firebase 配置，绝不进 Git）
+backend/run-dev.bat
 .env
 .env.local
 .env.production
