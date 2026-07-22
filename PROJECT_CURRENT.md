@@ -10,6 +10,26 @@
 
 ## 近期进展
 
+### 2026-07-22 修复 build_debug_server.bat 产出的 Debug APK 登录报 "Failed to construct 'URL': invalid URL"（TDD 完成）
+- 现象：`build_debug_server.bat` 打完的 Debug APK 在手机登录时抛 "Failed to construct 'URL': invalid URL"，旧版仅写 `.env` 文件注入 VITE_API_BASE，Vite 构建时可能未正确读取导致 API_BASE 回落到空字符串。
+- 根因：仅 `.env` 文件注入（Vite 中等优先级）不可靠；CD 的 `build_android.sh` 用 `export VITE_API_BASE`（进程环境变量，最高优先级）则没问题。
+- 修复（两处）：
+  1. **`build_debug_server.bat`**：改为 `set VITE_API_BASE` 进程环境变量注入（对标 CD），增加 URL 格式校验和构建前人工确认日志。
+  2. **`client.ts` + 新建 `apiBase.ts`**：将 API_BASE 解析逻辑提取为可测试纯函数 `resolveApiBase()`，PROD 模式下 VITE_API_BASE 为空时抛出详细中文错误（而非静默回落空字符串），并增加 `showFatalErrorOverlay()` 将错误注入 DOM 红色覆盖层（手机用户也能看到）。
+- CD Release 版本检查：**无此问题**——`deploy.yml` 通过 env 注入 + `build_android.sh` 有空值 exit 1 防护。
+- 测试：新建 `src/api/apiBase.test.ts`，vitest 2.1.0 + jsdom 环境，**14 tests passed, 0 failed**；TypeScript 编译通过（exit 0）。
+- 文件清单：新建 `apiBase.ts`、`apiBase.test.ts`、`vitest.config.ts`、`docs/debug-build-troubleshooting.md`；修改 `client.ts`、`build_debug_server.bat`、`tsconfig.json`、`package.json`。
+- 排查文档：`docs/debug-build-troubleshooting.md` 含根因分析、修复方案、验证步骤、检查清单。
+
+### 2026-07-22 代码审查：CD 产出的 APK 能否连后端（已修复 2 坑）
+- 任务：用 TDD + 代码审查核验「GitHub CD 打出的 APK 能否访问服务器后端」。
+- 链路核验（正确，无需改）：`deploy.yml` 把 `VITE_API_BASE=server_api_base`（默认 `http://47.104.152.25:8080`）注入 `build_android.sh`→Vite 编译进 APK→`client.ts` 使用；release 包已注入 `usesCleartextTraffic=true` 放行 http。
+- 发现并修复 2 个会让「新部署直接连不上」的坑：
+  1. `.env.production` 模板的 `CORS_ORIGINS` 漏了 `https://tauri.localhost`（而 `deploy.yml` 从不写该项，全靠服务器 `.env`）；→ 已补上。
+  2. `docker-compose.yml:54` 把 `CORS_ORIGINS` 透传空串时，`application.yml` 的 `${CORS_ORIGINS:*}` 兜底 `*` **不生效**（空值算"已设置"），`SecurityConfig` 解析出空允许列表→所有源被拒，APK 静默登录失败。→ 已在 `SecurityConfig.corsConfigurationSource()` 加兜底：空列表时回落为 `["*"]`。
+- 测试：新增 `backend/src/test/java/com/wangxinchen/dawang/config/SecurityConfigCorsTest.java`（纯单元，不启 Spring/DB），先红（空值用例失败）后绿，`mvn test -Dtest=SecurityConfigCorsTest` → Tests run: 3, Failures: 0。
+- 结论：当前线上那台服务器能连（用户已手动加 Tauri 源+放行 8080）；但仓库模板此前不自洽，现已修。外部依赖仍需人工确认：① 阿里云安全组入站放行 8080；② `47.104.152.25:8080` 为有效后端地址。
+
 ### 2026-07-22 服务器版 App 打包前置验证全部通过（已完成）
 - 目标：打一个连「服务器后端 http://47.104.152.25:8080」的 release App，并验证装上后能正常登录。
 - 服务器侧前置项（用户已确认）：① `/opt/account_book/.env` 的 `CORS_ORIGINS` 已加 `https://tauri.localhost`；② 阿里云安全组已放行 8080；③ `47.104.152.25:8080` 为有效地址。

@@ -1,18 +1,40 @@
 import axios, { type AxiosInstance } from 'axios'
+import { resolveApiBase, showFatalErrorOverlay } from './apiBase'
 
 const TOKEN_KEY = 'lm_token'
 
-// API 地址解析策略：
-// - 显式配置 (.env 中设了 VITE_API_BASE)：用配置值
-// - dev (npm run dev)：默认 http://127.0.0.1:8080，连本机后端
-// - prod (CD 构建)：默认空字符串 = 相对路径，浏览器走当前 origin，
-//   由部署环境的 nginx 反代 /api/ 到后端（避免 CDN/反代域名变更要重新构建）
-//   .env/.env.production 在根 .gitignore 里被排除，所以生产构建拿不到本地开发用的
-//   局域网 IP，必须用相对路径作为兜底。
-const _devDefault = 'http://127.0.0.1:8080'
-const _prodDefault = ''
-export const API_BASE = import.meta.env.VITE_API_BASE
-  || (import.meta.env.DEV ? _devDefault : _prodDefault)
+// ============================================================
+// 计算运行时 API_BASE
+// ============================================================
+
+let API_BASE: string
+try {
+  API_BASE = resolveApiBase(
+    import.meta.env.VITE_API_BASE as string | undefined,
+    import.meta.env.DEV,
+  )
+} catch (err: unknown) {
+  // 抛出时立即尝试注入 DOM 错误覆盖层
+  const msg = err instanceof Error ? err.message : String(err)
+  console.error('[林蛮记账] API_BASE 解析失败:', msg)
+
+  // 尝试注入 DOM 可见覆盖层（浏览器/WebView 环境）
+  try {
+    showFatalErrorOverlay(msg)
+  } catch {
+    // DOM 操作失败（如 Node.js 环境），忽略
+  }
+
+  // 回退到空字符串，让后续的 API 调用也带上报错
+  // （axios 会抛 "Invalid URL" 但至少 console 和 DOM 已经有线索了）
+  API_BASE = ''
+}
+
+export { API_BASE, resolveApiBase, showFatalErrorOverlay }
+
+// ============================================================
+// Token 管理
+// ============================================================
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
@@ -20,21 +42,25 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 }
 
-// 401 跳转处理器：由 AuthProvider 注册（携带当前路由，登录后可跳回原页面）。
-// 未注册时回退到整页跳转，保证向后兼容。
+// ============================================================
+// 401 跳转处理器（由 AuthProvider 注册）
+// ============================================================
+
 let unauthorizedHandler: (() => void) | null = null
 export function setUnauthorizedHandler(fn: () => void) {
   unauthorizedHandler = fn
 }
+
+// ============================================================
+// Axios 客户端
+// ============================================================
 
 const raw = axios.create({
   baseURL: API_BASE,
   timeout: 15000,
 })
 
-// 响应拦截：统一剥离 { code, message, data } 外壳，非 0 视为错误。
-// 拦截器在运行时已把返回值替换为 data，这里把类型声明为“直接返回数据”，
-// 省去每个调用处再拆包。
+// 请求拦截：自动带 JWT
 raw.interceptors.request.use((config) => {
   const token = tokenStore.get()
   if (token) {
@@ -43,6 +69,7 @@ raw.interceptors.request.use((config) => {
   return config
 })
 
+// 响应拦截：剥离 { code, message, data } 外壳
 raw.interceptors.response.use(
   (resp) => {
     const body = resp.data
@@ -56,8 +83,6 @@ raw.interceptors.response.use(
     if (status === 401) {
       tokenStore.clear()
       localStorage.removeItem('lm_profile')
-      // 优先走注入式跳转（保留当前路由，避免整页刷新丢表单）；
-      // 未注册 handler 时回退整页跳转。
       if (unauthorizedHandler) {
         unauthorizedHandler()
       } else {
@@ -66,10 +91,10 @@ raw.interceptors.response.use(
     }
     const msg = error.response?.data?.message || error.message || '网络错误，请确认后端已启动'
     return Promise.reject(new Error(msg))
-  }
+  },
 )
 
-// 让 TS 认为 get/post/put/delete 直接返回 T（已被拦截器解包）
+// 类型：让 get/post/put/delete 直接返回 T（已被拦截器解包）
 type ApiClient = Omit<AxiosInstance, 'get' | 'post' | 'put' | 'delete'> & {
   get: <T = unknown>(url: string, config?: Parameters<AxiosInstance['get']>[1]) => Promise<T>
   post: <T = unknown>(url: string, data?: unknown, config?: Parameters<AxiosInstance['post']>[2]) => Promise<T>

@@ -30,6 +30,9 @@
 - 改了本机 MySQL root 密码，记得同步改 `run-dev.bat` 里那行密码。
 - 前端命令（`npm install` / `npm run dev` / `build_android.bat`）都在 `frontend/` 目录执行；`.env` 放在 `frontend/` 下。
 - 后端并发测试：JUnit 5 + MockMvc（profile `concurrency`，库 `conctestdb`）与 Locust（backend/tests/loadtest/）两套方案，均已落地。
+- **前端单元测试**：vitest 2.1.0 + jsdom 已配置（`vitest.config.ts`），运行 `cd frontend && npx vitest run`（或 `npm test`）。`tsconfig.json` 已加 `"types": ["vitest/globals"]`。测试文件放在 `src/**/*.test.ts`。
+- **Debug APK 构建**：`build_debug_server.bat` 参照 CD 方案用 `set VITE_API_BASE` 进程环境变量注入（Vite 最高优先级），不再仅依赖 `.env` 文件。支持 `set DEBUG_SERVER_URL=http://你的IP:8080` 覆盖目标地址。构建前校验 URL 格式（必须以 http:// 或 https:// 开头）。
+- **API_BASE 解析**：`src/api/apiBase.ts` 的 `resolveApiBase()` 在 PROD 模式 + VITE_API_BASE 为空时抛出中文详细错误，`showFatalErrorOverlay()` 将错误注入 DOM 顶部红色覆盖层。纯函数可测试（`src/api/apiBase.test.ts`，14 例全绿）。
 
 ---
 
