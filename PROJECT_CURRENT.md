@@ -10,6 +10,16 @@
 
 ## 近期进展
 
+### 2026-07-22 服务器版 App 打包前置验证全部通过（已完成）
+- 目标：打一个连「服务器后端 http://47.104.152.25:8080」的 release App，并验证装上后能正常登录。
+- 服务器侧前置项（用户已确认）：① `/opt/account_book/.env` 的 `CORS_ORIGINS` 已加 `https://tauri.localhost`；② 阿里云安全组已放行 8080；③ `47.104.152.25:8080` 为有效地址。
+- 验证（从本机 curl 实测，全绿）：
+  - 测试1 公网可达 `GET /api/health` → `200 {"status":"ok"}`。
+  - 测试2 CORS 预检 `OPTIONS /api/auth/login` + `Origin: https://tauri.localhost` → 返回 `Access-Control-Allow-Origin: https://tauri.localhost` + `Allow-Credentials: true`（证明 .env 改后后端已重启生效）。
+  - 测试3 登录 `POST /api/auth/login` admin / `WXChen5437@` → `code:0` 返回 token（**admin 登录密码是 `WXChen5437@`，带 @；之前少打 @ 才 401**；该密码与 MySQL 库密码撞值但属两套配置：`ADMIN_PASSWORD` vs `DB_PASSWORD`）。
+- 结论：网络 + 8080 + CORS + 登录链路已完整验证可用，打包出的 App 连该地址必能登录。
+- 待执行：实际出包（路线 A：GitHub Actions 手动 Run workflow `CD 部署`，填 version + 默认 `server_api_base=http://47.104.152.25:8080`，自动签名出 release APK 到 Releases；或路线 B：本地 `frontend/` 下 `set LM_ENV=server && build_android.bat`）。
+
 ### 2026-07-22 排查并修复 App 登录 15s 超时（已完成）
 - 现象：手机 App 前端页能开，点登录卡很久后超时；电脑端后端与 DB 正常、APK 已用最新 VITE_API_BASE 重打包、CORS 默认 `*`。
 - 根因：Windows 防火墙拦截 8080 入站。手机（10.70.7.108）→ 电脑（10.70.14.127:8080）的 TCP 连接被 DROP，请求干等至 axios 15s 超时；与 IP/CORS/APK 配置无关。
