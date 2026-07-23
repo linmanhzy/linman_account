@@ -1,6 +1,6 @@
 # 林蛮记账 · 项目当前状况（PROJECT_CURRENT）
 
-> 最后更新：2026-07-22。本文件记录项目**当前进展与动态**，每次操作都会更新；经验与全局记忆见 `CODEBUDDY.md`。
+> 最后更新：2026-07-23。本文件记录项目**当前进展与动态**，每次操作都会更新；经验与全局记忆见 `CODEBUDDY.md`。
 
 ## 项目概况（速览）
 - 名称：林蛮记账（多用户联网记账系统）
@@ -9,6 +9,20 @@
 - 包名/标识：记忆包名 `com.linman.accountbook`；当前 `tauri.conf.json` 标识为 `com.wangxinchen.dawang`，产品名「记账大王」
 
 ## 近期进展
+
+### 2026-07-23 终于确认 mixedContentMode 注入生效，三道防线全部就位
+- 三天来的核心问题：Tauri v2 WebView 源 `https://tauri.localhost` 向 `http://47.104.152.25:8080` 发请求时被 WebView 引擎按默认 `MIXED_CONTENT_NEVER_ALLOW` 拦截→`Network Error`。
+- 经历多次迭代：
+  - 尝试1：Python 改 `RustWebView.kt` → 失败（文件不在此阶段生成，`tauri android init` 不产生它）。
+  - 尝试2：`os.walk` + 多路径搜索 → 失败（文件是 Gradle 配置阶段动态生成的，Python 跑在 init 之后、Gradle 之前）。
+  - 尝试3：改用 Gradle `afterEvaluate` 任务 → 任务匹配 `contains("Compile")` 大小写敏感，不匹配实际任务名 `compileXxxKotlin`。
+  - 尝试4（**成功**）：`contains("compile", ignoreCase = true)` → Gradle 任务在 Kotlin 编译前正确匹配并注入。
+- Gradle 构建日志验证（每个架构一次）：
+  - `==> [Gradle] 已注入 WebView mixedContentMode`（arm64/arm/x86/x86_64，首次注入）
+  - `==> [Gradle] mixedContentMode 已存在，跳过`（后续 Gradle 任务幂等）
+- 三道防线：① `usesCleartextTraffic=true` ② `network_security_config.xml` ③ `mixedContentMode=ALWAYS_ALLOW`。
+- 后端接口验证：`/api/health` 200 OK、`/api/auth/login` POST admin 200 + 返回 JWT token。
+- 待验证：下载新 APK → 手机安装 → admin/WXChen5437@ 登录。
 
 ### 2026-07-23 RustWebView.kt mixedContentMode 注入（WebView 混合内容拦截的真正解法）
 - 关键发现：`network_security_config.xml`（防线 1）不一定能覆盖所有 WebView 实现的混合内容策略；WebView 引擎有自己的 `mixedContentMode` 设置，Tauri v2 生成的 `RustWebView.kt` 未设置它，默认 `MIXED_CONTENT_NEVER_ALLOW`。
