@@ -124,21 +124,17 @@ def _ensure_nsc_placeholder_in_block(s, marker):
 
 
 GRADLE_NSC_TASK = '''
-// A2: generate network_security_config.xml（防止被 tauri re-init 抹掉）
+// A2: network_security_config 双保险（防止 tauri android build 内部 re-init 抹掉）
 afterEvaluate {
-    // 在 Gradle 配置阶段直接写文件（早于所有 task，不会被 tauri 重新 init 影响）
+    // 保险1：写 network_security_config.xml 到 res/xml/
+    // tauri android build 内部会重新调用 android init → 抹掉 res/xml/ 下的文件。
+    // afterEvaluate 在 Gradle 配置阶段执行，晚于 init、早于所有 task，
+    // 所以这里生成的 XML 能稳定参与后续的资源合并。
     val nscXmlDir = file("src/main/res/xml")
     nscXmlDir.mkdirs()
     val nscFile = file("$nscXmlDir/network_security_config.xml")
-    // 始终覆盖写，确保内容不会被 tauri init 还原为空模板
     nscFile.writeText("""<?xml version="1.0" encoding="utf-8"?>
 <!-- A2: Gradle 构建期自动生成，勿手改 -->
-<!--
-  核心作用：Tauri v2 WebView 源是 https://tauri.localhost，
-  从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
-  Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
-  仅靠 manifest 的 usesCleartextTraffic 不够。
--->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
@@ -146,7 +142,32 @@ afterEvaluate {
         </trust-anchors>
     </base-config>
 </network-security-config>""")
-    println("==> [Gradle] 已确保 network_security_config.xml 存在（Gradle 构建期生成）")
+    println("==> [Gradle] 已确保 network_security_config.xml 存在（双保险 #1）")
+
+    // 保险2：确保 AndroidManifest.xml 引用 networkSecurityConfig（硬编码兜底）
+    // tauri android build 内部 re-init 会从模板重新生成 AndroidManifest.xml，
+    // Python 注入的 ${networkSecurityConfig} 占位符被抹掉后，
+    // manifestPlaceholders 就成了"有钥匙没锁孔"。
+    // 这里直接用字符串替换把硬编码属性写进去，不再依赖占位符机制。
+    val attr = """android:networkSecurityConfig="@xml/network_security_config""""
+    val ph = """android:networkSecurityConfig="${networkSecurityConfig}""""
+    val mf = file("src/main/AndroidManifest.xml")
+    if (mf.exists()) {
+        var mft = mf.readText()
+        if (!mft.contains(attr)) {
+            if (mft.contains(ph)) {
+                // 情况A：manifest 中有占位符 → 替换为硬编码值
+                mft = mft.replace(ph, attr)
+            } else {
+                // 情况B：manifest 中完全没有 networkSecurityConfig → 在 <application 标签中插入
+                mft = mft.replace("<application", "<application\\n        $attr")
+            }
+            mf.writeText(mft)
+            println("==> [Gradle] 已补回 networkSecurityConfig 到 AndroidManifest.xml（双保险 #2）")
+        } else {
+            println("==> [Gradle] AndroidManifest.xml 中 networkSecurityConfig 已存在，跳过")
+        }
+    }
 }
 '''
 
@@ -164,7 +185,7 @@ def _inject_nsc_gradle_task(app_dir):
     gradle_path = os.path.join(app_dir, "build.gradle.kts")
     content = open(gradle_path, encoding="utf-8").read()
 
-    MARKER = "// A2: generate network_security_config.xml"
+    MARKER = "// A2: network_security_config 双保险"
     if MARKER in content:
         print(f"==> Gradle NSC 生成任务已存在，跳过")
         return
@@ -385,8 +406,8 @@ def _print_verification(app_dir):
         else:
             print(f"  [gradle] FAIL manifestPlaceholders[networkSecurityConfig] 未注入!")
 
-        # 1.6) build.gradle.kts → Gradle afterEvaluate NSC 生成任务
-        if "// A2: generate network_security_config.xml" in content:
+        # 1.6) build.gradle.kts → Gradle afterEvaluate NSC 双保险
+        if "// A2: network_security_config 双保险" in content:
             print(f"  [gradle] OK Gradle NSC 生成任务已注入（afterEvaluate 写文件）")
         else:
             print(f"  [gradle] FAIL Gradle NSC 生成任务未注入!")
