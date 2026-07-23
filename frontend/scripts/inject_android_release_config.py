@@ -217,7 +217,7 @@ MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWA
 GRADLE_MIXED_CONTENT_TASK = '''
 // A2: inject mixedContentMode
 afterEvaluate {
-    tasks.matching { it.name.contains("Kotlin") && it.name.contains("Compile") }.configureEach {
+    tasks.matching { it.name.contains("kotlin", ignoreCase = true) && it.name.contains("compile", ignoreCase = true) }.configureEach {
         doFirst {
             val namespace = android.namespace ?: "com.wangxinchen.dawang"
             val pkgPath = namespace.replace(".", "/")
