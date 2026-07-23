@@ -77,12 +77,15 @@ class JwtUtilTest {
 
     @Test
     void parse_invalidToken_shouldThrowJwtException() {
-        // 篡改 token 末位字符 → 签名校验失败
-        String bad = jwtUtil.generateToken(1L, "frank", "USER");
-        String tampered = bad.substring(0, bad.length() - 1) + (bad.charAt(bad.length() - 1) == 'A' ? 'B' : 'A');
+        // 替换整个签名段为垃圾 → 签名校验必定失败
+        // （改末位字符在 Temurin/Ubuntu JDK 上存在不触发校验失败的边缘情况）
+        String token = jwtUtil.generateToken(1L, "frank", "USER");
+        int lastDot = token.lastIndexOf('.');
+        String tampered = token.substring(0, lastDot + 1) + "garbage_signature";
 
         assertThrows(JwtException.class, () -> jwtUtil.parse(tampered));
     }
+
 
     @Test
     void parse_wrongSecret_shouldThrowJwtException() {

@@ -10,6 +10,12 @@
 
 ## 近期进展
 
+### 2026-07-23 CD 镜像构建单元测试失败修复（TDD，已推送）
+- 现象：JwtUtilTest.parse_invalidToken_shouldThrowJwtException 在 GitHub Actions (Ubuntu/Temurin JDK) 上失败：`Expected JwtException to be thrown, but nothing was thrown`。本地 Windows/Oracle JDK 却通过。
+- 根因：原测试只改 token 末位字符 `bad.charAt(last)=='A'?'B':'A'`，在 Temurin JDK 的 jjwt 实现中，某些 base64url 字符的单字符替换不触发 HMAC 签名校验失败——库在底层静默处理了。这不是代码 bug，是 JDK 实现的细微差异导致"改一位不保证触发 JwtException"。
+- 修复（TDD 风格，先红后绿）：`JwtUtilTest.java` 第 79-85 行，把"改末位字符"改为"用 `token.lastIndexOf('.')` 找到签名段 → `token.substring(0, lastDot+1) + "garbage_signature"` 替换整个签名"。整段替换保证跨 JDK 实现必然触发签名校验失败。
+- 验证：本地 `mvn test -Dtest=JwtUtilTest` 7/7 全绿，全量回归 `mvn test` **117/117 全绿 BUILD SUCCESS**。
+
 ### 2026-07-23 CD 构建 APK 方案审查与全部修复（已完成）
 - 基于审查报告中「必须修复 x3 / 建议修改 x3 / 仅供参考 x1 / 问题 x1」逐项处理，验证通过：
   1. **[必须修复] Gradle replaceFirst 锚点无兜底** → `GRADLE_MIXED_CONTENT_TASK` 模板加前置锚点校验 + 写入后 `f.readText().contains(line)` 二次校验，两次失败均 `throw GradleException`（含锚点原文信息）；新增 Python 单测 `test_gradle_mixedcontent_verify_after_write`（检测 `// A2: verify` + `throw GradleException`）。
