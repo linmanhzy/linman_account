@@ -314,6 +314,21 @@ def test_gradle_task_coexists_with_signing(tmp_path):
     assert "create(\"release\")" in content or "create(\"release\")" in content, "必须有签名配置"
 
 
+def test_gradle_mixedcontent_verify_after_write(tmp_path):
+    """验证 Gradle 任务中 mixedContentMode 写入后有二次校验（防止 replaceFirst 锚点不匹配静默失败）。"""
+    gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
+    inj.inject_all(gradle_path)
+
+    # 检查注入的 Gradle 任务代码中必须包含 verification 逻辑
+    gc = open(gradle_path, encoding="utf-8").read()
+    assert "// A2: verify mixedContentMode" in gc, (
+        "Gradle 任务中必须包含二次校验代码（verify）"
+    )
+    assert "throw GradleException" in gc, (
+        "如果 replaceFirst 由于锚点不匹配而静默失败，必须抛出 GradleException 使构建显式失败"
+    )
+
+
 # ------- 不依赖 pytest 的直跑入口 -------
 if __name__ == "__main__":
     import traceback

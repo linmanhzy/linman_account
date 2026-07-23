@@ -1,0 +1,107 @@
+{
+  "project": "林蛮记账（account_book/backend）",
+  "framework": "JUnit 5 + Mockito 5.11.0",
+  "timestamp": "2026-07-23T12:05:00+08:00",
+  "test_scope": "本轮新增 4 个测试类（35 案例），回归全量后端测试 117/117 全绿",
+  "units_detected_new": 4,
+  "tests_generated_new": 35,
+  "tests_run_new": 35,
+  "tests_passed_new": 35,
+  "tests_failed_new": 0,
+  "tests_skipped_new": 0,
+  "pass_rate_new_pct": 100.0,
+  "total_tests_run": 117,
+  "total_tests_passed": 117,
+  "total_tests_failed": 0,
+  "total_tests_skipped": 0,
+  "duration_seconds_new": 1.5,
+  "new_units": [
+    {
+      "id": 1,
+      "priority": "P0",
+      "file": "backend/src/main/java/com/wangxinchen/dawang/security/JwtUtil.java",
+      "unit_name": "JwtUtil (generateToken/parse/getUsername/getUserId/getRole)",
+      "type": "component",
+      "tests_count": 7,
+      "tests_passed": 7,
+      "tests_failed": 0,
+      "key_assertions": [
+        "签发后能解析：subject/claims(userId, role) 正确",
+        "过期时间符合 expirationMs",
+        "篡改 token 抛 JwtException",
+        "密钥错配抛 JwtException",
+        "getUsername/getUserId/getRole 三个便捷方法正确"
+      ]
+    },
+    {
+      "id": 2,
+      "priority": "P0",
+      "file": "backend/src/main/java/com/wangxinchen/dawang/service/AuthService.java",
+      "unit_name": "AuthService (register/login)",
+      "type": "service",
+      "tests_count": 6,
+      "tests_passed": 6,
+      "tests_failed": 0,
+      "key_assertions": [
+        "register 成功：密码被 encode（非明文）、默认 Role.USER、触发欢迎通知且 rank=countByCreatedAtLessThanEqual",
+        "register 重名：抛 BizException 409，不调 save/不通知",
+        "login 正确：返回 token、更新 lastLoginAt",
+        "login 用户名错：抛 401，不调 matches",
+        "login 密码错：抛 401，提示文案与用户名错完全一致（防用户名枚举）",
+        "login 账户禁用：抛 403"
+      ]
+    },
+    {
+      "id": 3,
+      "priority": "P1",
+      "file": "backend/src/main/java/com/wangxinchen/dawang/service/CategoryService.java",
+      "unit_name": "CategoryService (listTree/createL1/createL2/update/delete)",
+      "type": "service",
+      "tests_count": 17,
+      "tests_passed": 17,
+      "tests_failed": 0,
+      "key_assertions": [
+        "listTree：系统+用户 L1 混合建树，子节点挂在正确父节点下",
+        "listTree：找不到父节点的孤儿 L2 必须被丢弃（不挂在错误父节点下）",
+        "createL1：空名 → 400、非法 type → 400、用户 scope 重名 → 409、系统 scope 重名 → 409、sortOrder = 当前用户该 type L1 数",
+        "createL2：父类不存在 → 404、别人的父类 → 403、系统父类允许、重复 → 409",
+        "update：系统分类 → 403、别人分类 → 403、name/icon 部分更新保留原值",
+        "delete：L1 级联删除子 L2、L2 不动其它、系统分类 → 403"
+      ]
+    },
+    {
+      "id": 4,
+      "priority": "P1",
+      "file": "backend/src/main/java/com/wangxinchen/dawang/service/ViolationService.java",
+      "unit_name": "ViolationService (recordAndCheck + 7 天窗口)",
+      "type": "service",
+      "tests_count": 5,
+      "tests_passed": 5,
+      "tests_failed": 0,
+      "key_assertions": [
+        "首次违规：count=1、notified=false、记录 firstAt、不通知管理员",
+        "达到阈值（2）：count=2、notified=true、通知所有管理员（内容含用户名/类型/次数）",
+        "已通知后再违规：count 继续累加但不再通知（窗口期内只通知一次）",
+        "超 7 天后违规：count 重置为 1、notified 清空",
+        "恰好 7 天（边界）：不重置，count 继续累加"
+      ]
+    }
+  ],
+  "tdd_process": {
+    "approach": "为已存在代码补单元测试，但严格执行『先写测试、看到结果、修正断言、再次跑通』的 TDD 循环",
+    "red_phase": [
+      "Round 1：编译错误——Java 字符串中嵌套未转义的中文双引号被误解析（3 处）→ 改为『』",
+      "Round 2：编译错误——JwtUtil 缺 java.util.Date import → 添加",
+      "Round 3：4 个 ViolationService 失败——断言写错（msg.contains(\"已记录\") 实际匹配不到\"已被记录\"中间隔了被字）→ 改为已被记录/通知管理员",
+      "Round 3：1 个 AuthService InvalidUseOfMatchers——verify 阶段 any(User.class) + 7 raw 字面量混用 → 改为 eq(7) matcher"
+    ],
+    "green_phase": "Round 4：35/35 全绿，全量回归 117/117 全绿"
+  },
+  "environment": {
+    "java_version": "21.0.11",
+    "maven_version": "3.8.5",
+    "junit_jupiter": "5.10.5",
+    "mockito": "5.11.0",
+    "surefire": "3.2.5"
+  }
+}

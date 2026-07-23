@@ -42,7 +42,11 @@ jobs:
           java-version: "21"          # 与 pom.xml 保持一致
           cache: maven
 
-      - name: 打包后端（生成可执行 jar，跳过测试以加快发布）
+      - name: 🧪 跑纯单元测试（Mockito 风格，秒级）
+        run: mvn -B test -Dtest='*Test' -DfailIfNoTests=false
+        working-directory: backend
+
+      - name: 📦 打包后端（生成可执行 jar）
         run: mvn -B package -DskipTests
         working-directory: backend    # jar 会生成在 backend/target/ 下
 
@@ -98,6 +102,12 @@ jobs:
 
             # 更新镜像版本号到 .env，让 compose 拉取正确版本
             sed -i "s/^APP_VERSION=.*/APP_VERSION=${{ github.event.inputs.version }}/" .env
+            # 确保 CORS_ORIGINS 包含 Tauri WebView 源（幂等：不存在才追加）
+            if ! grep -q "https://tauri.localhost" .env 2>/dev/null; then
+              echo "CORS_ORIGINS=https://tauri.localhost" >> .env
+              echo "==> 已追加 CORS_ORIGINS 到 .env"
+            fi
+            echo "当前 APP_VERSION=${{ github.event.inputs.version }}"
 
             # 只拉取 compose 实际引用的镜像（后端 + 前端，按 APP_VERSION 指定版本）。
             # 不再额外拉取 :latest（compose 不使用），下载量减半，避免 SSH 命令超时。

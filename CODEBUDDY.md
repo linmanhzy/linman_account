@@ -25,6 +25,25 @@
 
 > 项目当前进展与近期动态已迁移至 **`PROJECT_CURRENT.md`**（仓库根目录），请在那里查看与更新；本文件只保留经验与全局记忆。
 
+## 新增：后端 TDD 单测经验（2026-07-23）
+
+- **风格选择**：本项目后端 service 已有 17 个测试，主流是 `@ExtendWith(MockitoExtension.class) + @Mock + @InjectMocks`（纯单元，秒级），少数是 `@DataJpaTest`（启 H2，慢但真实）。补新单测时**优先 Mockito 风格**，仅在必须测 JPA 查询时用 DataJpaTest。
+- **TDD 红→绿 真实跑出来**（已记录在 `TEST_REPORT.md`）：① Java 字符串中嵌套未转义的中文双引号会被解析为字符串结束→改『』；② `contains("已记录")` 找不到 `"已被记录"`（中间隔"被"字），必须写完整子串；③ Mockito 4.x verify 阶段 `any() + raw 7` 混用会抛 `InvalidUseOfMatchersException`，要么 `any() + eq(7)` 全部 matcher，要么 `any() + 7` 全部 raw。
+- **鉴权核心单测必须覆盖**：① 密码必须 BCrypt 编码后落库（`ArgumentCaptor` 抓 save 入参）；② 用户名错 / 密码错的提示文案必须完全一致（防用户名枚举）；③ JWT token 必须包含 userId/role claims；④ 篡改/密钥错配必须抛 JwtException。
+- **窗口期类逻辑（如 7 天滑动）**：边界用 `LocalDateTime.now().minusDays(7)`（恰好 7 天不重置）与 `.minusDays(8)`（重置）对照。源码条件若用 `> 7`，测试要钉住"恰好 7 天不重置"防止有人手贱改成 `>= 7`。
+- **报告模板**：`backend/TEST_REPORT.md`（中文 + Markdown）+ `backend/TEST_REPORT.json`（程序可读）。下次有新测试直接增量追加，不要覆盖。
+
+## 新增：VITE_API_BASE 注入与构建产物一致性（2026-07-23）
+
+- **错误机制**：`apiBase.ts` 的 `resolveApiBase()` 在 PROD 模式 + VITE_API_BASE 为空时**主动抛错**（不是静默 fallback），并由 `showFatalErrorOverlay()` 把中文错误注入 DOM 顶部红色覆盖层。这是 7/22 修复的友好错误——之前是 axios 抛 `"Failed to construct 'URL': invalid URL"` 无任何线索。
+- **常见误诊**：用户看到红色覆盖层时，**先看他们打开的是哪个产物**：
+  1. 浏览器 `http://localhost:5173/` → Vite dev server → DEV 模式 → 不会报这个错（fallback 到 127.0.0.1:8080）
+  2. 浏览器 `http://localhost:4173/` → `vite preview` → 用 dist/ → **会报这个错**（如果 dist 是旧的）
+  3. Tauri 桌面应用 → 用 dist/ → **会报这个错**（如果 dist 是旧的）
+  4. Tauri Android App → 嵌入 dist/ → **会报这个错**（如果 APK 是旧的）
+- **修复路径**：在 `frontend/` 跑一次 `npm run build:web` 即可（Vite 会读 .env，把 VITE_API_BASE 静态替换进 dist/assets/index-*.js）。验证：`findstr "47.104.152.25" frontend\dist\assets\*.js` 应能匹配到。
+- **避坑**：改了 .env 一定要重跑 build；不要用旧 dist 调试——vite preview 会直接用旧产物，前端报错后即使后端在跑也连不上。
+
 ## 给后续对话的提醒
 - 启动后端：优先在**本机 cmd**（非 codebuddy 终端）跑 `mvn spring-boot:run`，或直接运行 `backend/run-dev.bat`。
 - 改了本机 MySQL root 密码，记得同步改 `run-dev.bat` 里那行密码。

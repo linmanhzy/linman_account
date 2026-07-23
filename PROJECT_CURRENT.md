@@ -10,6 +10,39 @@
 
 ## 近期进展
 
+### 2026-07-23 CD 构建 APK 方案审查与全部修复（已完成）
+- 基于审查报告中「必须修复 x3 / 建议修改 x3 / 仅供参考 x1 / 问题 x1」逐项处理，验证通过：
+  1. **[必须修复] Gradle replaceFirst 锚点无兜底** → `GRADLE_MIXED_CONTENT_TASK` 模板加前置锚点校验 + 写入后 `f.readText().contains(line)` 二次校验，两次失败均 `throw GradleException`（含锚点原文信息）；新增 Python 单测 `test_gradle_mixedcontent_verify_after_write`（检测 `// A2: verify` + `throw GradleException`）。
+  2. **[必须修复] CD 不更新 CORS_ORIGINS** → `deploy.yml` SSH 脚本加 `grep -q "https://tauri.localhost" .env` 幂等检测，不存在才追加。
+  3. **[必须修复] CD skipTests 跳过后端所有测试** → `deploy.yml` 在 `package -DskipTests` 前增加 `mvn -B test -Dtest=*Test -DfailIfNoTests=false` 步骤（秒级跑纯单元测试）。
+  4. **[建议修改] NSC_COMMENT 死代码** → 删除（第 69 行，从未被使用）。
+  5. **[建议修改] Gradle 任务匹配过于宽泛** → `contains("kotlin") && contains("compile")` 改为 `contains("Release") && contains("compileKotlin")`（仅匹配 release 编译，避免每架构重复注入）。
+  6. **[建议修改] build_android.sh 缺 python3 前置校验** → 加 `command -v python3` 检查。
+  7. **[仅供参考] print_verification 输出顺序** → 对齐 inject_all 执行顺序（gradle→nsc→manifest→webview）。
+  - 验证：Python 单测 14/14 ✅，后端全量 117/117 ✅，deploy.yml YAML 语法 OK。
+  - 文件：`deploy.yml`、`inject_android_release_config.py`、`build_android.sh`、`test_inject_android_release_config.py`。
+
+### 2026-07-23 后端单元测试 TDD 落地（已完成）
+- 用户要求"对后端进行单元测试"（TDD 风格）。本轮为 **4 个核心服务** 补单测，**35 个新测试全绿 + 全量 117/117 全绿**。
+- 新增测试类（Mockito 风格纯单元，秒级运行）：
+  1. `JwtUtilTest`（7 例）— 签发/解析/字段/篡改/密钥错配
+  2. `AuthServiceTest`（6 例）— register/login 全场景 + 防用户名枚举断言
+  3. `CategoryServiceTest`（17 例）— listTree/createL1/createL2/update/delete
+  4. `ViolationServiceTest`（5 例）— 7 天窗口/阈值/管理员通知/重置边界
+- TDD 循环真实跑出"红→绿"：第 1 轮 3 处中文字符串双引号被 Java 误解析（改为『』），第 2 轮 JwtUtil 缺 `Date` import，第 3 轮 4 处 `msg.contains("已记录")` 错（应为"已被记录"）+ Mockito `any() + 7 raw` 混用错（改为 `eq(7)` matcher）。第 4 轮全绿。
+- 报告：`backend/TEST_REPORT.md`（Markdown）+ `backend/TEST_REPORT.json`（机器可读）。
+- 基线：原 82 个测试中，1 个 `ConcurrentRecordTest` 因 H2 连接池超时偶发失败（环境问题，不是产品 bug）；本轮全量跑时它通过了（1/1）。代码覆盖率上，本轮把鉴权核心（JwtUtil、AuthService）和两个 CRUD 服务（Category、Violation）的单测从 0 提升到接近 100% 覆盖关键路径。
+
+### 2026-07-23 浏览器/Tauri WebView 报"后端地址未配置" 根因 + 修复（已完成）
+- 现象：用户浏览器（或 Tauri WebView）顶部出现红色错误覆盖层，明确提示"构建时未注入 VITE_API_BASE"。
+- 根因：**用户打开的产物是更早构建的 dist/**（那时 .env 里的 VITE_API_BASE 还没设置或没生效）。`apiBase.ts` 的 `showFatalErrorOverlay()` 在 PROD 模式 + VITE_API_BASE 为空时**主动抛错**注入覆盖层（这是 7/22 加的友好错误）。
+- 验证（已实操）：在 `frontend/` 目录 `npm run build:web` 后，`findstr` 在 `dist\assets\index-G52eEES7.js` 里能找到 `47.104.152.25` 字面量——证明 .env 里的 VITE_API_BASE 被正确注入。
+- 修复步骤（任选其一）：
+  - **桌面浏览器调试**：`cd frontend && npx vite preview`（产物服务在 http://localhost:4173/，使用刚才构建好的 dist/）
+  - **桌面 Tauri 调试**：`cd frontend && npx tauri dev`（自动跑 `npm run dev:web` + 启动 WebView）
+  - **重新打 APK**（给手机用）：双击 `frontend\build_debug_server.bat`（用 `set VITE_API_BASE` 进程环境变量强制注入，对标 CD）
+- 经验：每次改完 .env 都要重跑构建；旧 dist 不会自动同步。
+
 ### 2026-07-23 终于确认 mixedContentMode 注入生效，三道防线全部就位
 - 三天来的核心问题：Tauri v2 WebView 源 `https://tauri.localhost` 向 `http://47.104.152.25:8080` 发请求时被 WebView 引擎按默认 `MIXED_CONTENT_NEVER_ALLOW` 拦截→`Network Error`。
 - 经历多次迭代：

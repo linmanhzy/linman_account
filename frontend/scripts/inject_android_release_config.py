@@ -65,8 +65,6 @@ NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
 
 # AndroidManifest.xml 的 <application> 标签中要注入的属性
 NSC_ATTR = 'android:networkSecurityConfig="@xml/network_security_config"'
-# 标记注释（用于幂等性检测）
-NSC_COMMENT = '<!-- A2: networkSecurityConfig -->'
 
 
 def _find_block(s, marker):
@@ -215,9 +213,9 @@ MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWA
 
 
 GRADLE_MIXED_CONTENT_TASK = '''
-// A2: inject mixedContentMode
+// A2: inject mixedContentMode (WebView 独立混合内容限制 -> ALWAYS_ALLOW)
 afterEvaluate {
-    tasks.matching { it.name.contains("kotlin", ignoreCase = true) && it.name.contains("compile", ignoreCase = true) }.configureEach {
+    tasks.matching { it.name.contains("Release", ignoreCase = true) && it.name.contains("compileKotlin", ignoreCase = true) }.configureEach {
         doFirst {
             val namespace = android.namespace ?: "com.wangxinchen.dawang"
             val pkgPath = namespace.replace(".", "/")
@@ -230,12 +228,20 @@ afterEvaluate {
                     val txt = f.readText()
                     val line = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
                     if (!txt.contains(line)) {
+                        val anchor = "settings.javaScriptCanOpenWindowsAutomatically = true"
+                        if (!txt.contains(anchor)) {
+                            throw GradleException("A2 注入失败: RustWebView.kt 中未找到锚点字符串 '$anchor'，Tauri 可能已升级。请更新 inject_android_release_config.py 中的锚点。")
+                        }
                         f.writeText(
                             txt.replaceFirst(
-                                "settings.javaScriptCanOpenWindowsAutomatically = true",
-                                "settings.javaScriptCanOpenWindowsAutomatically = true\\n        $line"
+                                anchor,
+                                anchor + "\\n        $line"
                             )
                         )
+                        // A2: verify mixedContentMode 写入真正生效（防止 replaceFirst 锚点匹配后静默失败）
+                        if (!f.readText().contains(line)) {
+                            throw GradleException("A2 注入失败: 虽然找到锚点，但写入后仍未找到 mixedContentMode。请检查 RustWebView.kt 格式是否变动。")
+                        }
                         println("==> [Gradle] 已注入 WebView mixedContentMode -> " + f.absolutePath)
                     } else {
                         println("==> [Gradle] mixedContentMode 已存在，跳过")
@@ -279,15 +285,14 @@ def _print_verification(app_dir):
     """
     print("=" * 60)
     print("==> [构建证据] 注入后实际内容（APK 里将包含这些）")
-    print("=" * 60)
+    print("==")
 
-    # 1) AndroidManifest.xml 的 <application> 关键属性
-    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
-    if os.path.isfile(manifest_path):
-        content = open(manifest_path, encoding="utf-8").read()
-        for line in content.split("\n"):
-            if "usesCleartextTraffic" in line or "networkSecurityConfig" in line:
-                print(f"  [manifest] {line.strip()}")
+    # 1) build.gradle.kts 注入（签名 + usesCleartextTraffic）
+    gradle_path2 = os.path.join(app_dir, "build.gradle.kts")
+    if os.path.isfile(gradle_path2):
+        content = open(gradle_path2, encoding="utf-8").read()
+        if "create(\"release\")" in content and "usesCleartextTraffic" in content:
+            print(f"  [gradle] OK 签名块 + usesCleartextTraffic 已注入")
 
     # 2) network_security_config.xml 是否存在
     nsc_path = os.path.join(app_dir, "src", "main", "res", "xml", "network_security_config.xml")
@@ -296,7 +301,15 @@ def _print_verification(app_dir):
     else:
         print(f"  [nsc] FAIL 未生成!")
 
-    # 3) Gradle mixedContentMode 任务是否已注入
+    # 3) AndroidManifest.xml 的 <application> 关键属性
+    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
+    if os.path.isfile(manifest_path):
+        content = open(manifest_path, encoding="utf-8").read()
+        for line in content.split("\n"):
+            if "usesCleartextTraffic" in line or "networkSecurityConfig" in line:
+                print(f"  [manifest] {line.strip()}")
+
+    # 4) Gradle mixedContentMode 任务是否已注入
     gradle_path2 = os.path.join(app_dir, "build.gradle.kts")
     if os.path.isfile(gradle_path2):
         gc = open(gradle_path2, encoding="utf-8").read()

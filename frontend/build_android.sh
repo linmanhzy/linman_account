@@ -67,6 +67,9 @@ echo "==> [3/4] 已写入签名配置 (alias=$ANDROID_KEY_ALIAS)"
 # 若不写回 release 的 usesCleartextTraffic="true"，release 包会禁止 http://，
 # App 连不上只提供 http 的服务器后端（该问题此前静默存在，靠 Tauri 模板 defaultConfig 继承兜底）。
 # 注入逻辑抽到 scripts/inject_android_release_config.py，可单测（见 tests/）。
+# 前置校验：python3 必须可用（inject 脚本是 release 构建的关键依赖）
+command -v python3 >/dev/null || { echo "错误：需要 python3（依赖注入脚本）" >&2; exit 1; }
+
 APP_GRADLE="$APP_DIR/build.gradle.kts"
 if [ ! -f "$APP_GRADLE" ]; then
   echo "错误：未找到 $APP_GRADLE，tauri android init 可能失败" >&2
