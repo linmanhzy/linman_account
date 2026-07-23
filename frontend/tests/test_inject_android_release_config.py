@@ -278,62 +278,40 @@ def test_inject_all_also_does_gradle_injection(tmp_path):
     assert inj.CLEARTEXT_LINE in out[i:j + 1], "inject_all 必须放行 release HTTP"
 
 
-# ====== RustWebView.kt mixedContentMode 注入测试 ======
+# ====== WebView mixedContentMode 注入测试（Gradle 任务方式）======
 
-def test_webview_mixed_content_injected(tmp_path):
-    """验证 RustWebView.kt 中被注入了 mixedContentMode 设置。"""
+def test_gradle_mixedcontent_task_injected(tmp_path):
+    """验证 build.gradle.kts 中被注入了 Gradle mixedContentMode 任务。"""
     gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
     inj.inject_all(gradle_path)
 
-    # 找到 RustWebView.kt
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    webview_path = None
-    for root, dirs, files in os.walk(java_dir):
-        if "RustWebView.kt" in files:
-            webview_path = os.path.join(root, "RustWebView.kt")
-            break
-
-    assert webview_path is not None, "RustWebView.kt 必须存在"
-    content = open(webview_path, encoding="utf-8").read()
-    assert inj.MIXED_CONTENT_LINE in content, (
-        "RustWebView.kt 必须包含 mixedContentMode = MIXED_CONTENT_ALWAYS_ALLOW"
+    content = open(gradle_path, encoding="utf-8").read()
+    assert "A2: inject mixedContentMode" in content, "build.gradle.kts 必须包含 Gradle 任务标记"
+    assert "mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW" in content, (
+        "Gradle 任务中必须包含 mixedContentMode 设置"
     )
 
 
-def test_webview_mixed_content_idempotent(tmp_path):
-    """验证 RustWebView.kt 重复注入不会产生重复行。"""
+def test_gradle_mixedcontent_task_idempotent(tmp_path):
+    """验证重复注入 Gradle 任务不会重复。"""
     gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
     inj.inject_all(gradle_path)
     inj.inject_all(gradle_path)
 
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    for root, dirs, files in os.walk(java_dir):
-        if "RustWebView.kt" in files:
-            wp = os.path.join(root, "RustWebView.kt")
-            content = open(wp, encoding="utf-8").read()
-            assert content.count(inj.MIXED_CONTENT_LINE) == 1, (
-                "重复注入不能产生重复的 mixedContentMode 行"
-            )
-            break
+    content = open(gradle_path, encoding="utf-8").read()
+    assert content.count("// A2: inject mixedContentMode") == 1, (
+        "重复注入不能产生重复的 Gradle 任务标记"
+    )
 
 
-def test_webview_init_still_intact(tmp_path):
-    """验证注入后 RustWebView.kt 原始 init 逻辑未损坏。"""
+def test_gradle_task_coexists_with_signing(tmp_path):
+    """验证 Gradle mixedContentMode 任务与签名配置共存。"""
     gradle_path, manifest_path, app_dir = _setup_app_dir(str(tmp_path._root))
     inj.inject_all(gradle_path)
 
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    for root, dirs, files in os.walk(java_dir):
-        if "RustWebView.kt" in files:
-            content = open(os.path.join(root, "RustWebView.kt"), encoding="utf-8").read()
-            # 原有设置依然存在
-            assert "settings.javaScriptEnabled = true" in content
-            assert "settings.domStorageEnabled = true" in content
-            assert "settings.javaScriptCanOpenWindowsAutomatically = true" in content
-            assert "class RustWebView" in content
-            # 注入的新行也存在
-            assert inj.MIXED_CONTENT_LINE in content
-            break
+    content = open(gradle_path, encoding="utf-8").read()
+    assert "A2: inject mixedContentMode" in content, "必须有 Gradle 任务"
+    assert "create(\"release\")" in content or "create(\"release\")" in content, "必须有签名配置"
 
 
 # ------- 不依赖 pytest 的直跑入口 -------

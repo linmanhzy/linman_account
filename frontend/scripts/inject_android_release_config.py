@@ -214,99 +214,62 @@ def inject(path):
 MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
 
 
-def _find_rust_webview(app_dir):
-    """
-    在多种可能的路径下搜索 RustWebView.kt。
-
-    返回找到的绝对路径，或 None（若未找到）。
-    打印详细调试信息以便 GitHub Actions 日志排错。
-    """
-    # 方案 A：从 AndroidManifest.xml 读取 package，构造精确路径
-    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
-    if os.path.isfile(manifest_path):
-        import re
-        content = open(manifest_path, encoding="utf-8").read()
-        m = re.search(r'package="([^"]+)"', content)
-        if m:
-            pkg = m.group(1)
-            pkg_path = pkg.replace(".", os.sep)
-            candidate = os.path.join(
-                app_dir, "src", "main", "java", pkg_path, "generated", "RustWebView.kt"
+GRADLE_MIXED_CONTENT_TASK = '''
+// A2: inject mixedContentMode
+afterEvaluate {
+    tasks.matching { it.name.contains("Kotlin") && it.name.contains("Compile") }.configureEach {
+        doFirst {
+            val namespace = android.namespace ?: "com.wangxinchen.dawang"
+            val pkgPath = namespace.replace(".", "/")
+            val candidates = listOf(
+                file("src/main/java/$pkgPath/generated/RustWebView.kt"),
+                file("src/main/kotlin/$pkgPath/generated/RustWebView.kt")
             )
-            if os.path.isfile(candidate):
-                return candidate
-            # 也试 kotlin 目录（某些项目用 kotlin 而非 java）
-            candidate2 = os.path.join(
-                app_dir, "src", "main", "kotlin", pkg_path, "generated", "RustWebView.kt"
-            )
-            if os.path.isfile(candidate2):
-                return candidate2
-
-    # 方案 B：遍历 java 目录树
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    if os.path.isdir(java_dir):
-        for root, dirs, files in os.walk(java_dir):
-            if "RustWebView.kt" in files:
-                return os.path.join(root, "RustWebView.kt")
-
-    # 方案 C：遍历 kotlin 目录树
-    kotlin_dir = os.path.join(app_dir, "src", "main", "kotlin")
-    if os.path.isdir(kotlin_dir):
-        for root, dirs, files in os.walk(kotlin_dir):
-            if "RustWebView.kt" in files:
-                return os.path.join(root, "RustWebView.kt")
-
-    # 全部失败 → 打印详细诊断
-    print(f"==> [错误] 在所有候选路径中均未找到 RustWebView.kt")
-    print(f"      A 方案路径 (from manifest package): 检查了 java/ 和 kotlin/ 下的 generated/RustWebView.kt")
-    print(f"      java_dir = {java_dir}  exists={os.path.isdir(java_dir)}")
-    print(f"      kotlin_dir = {kotlin_dir}  exists={os.path.isdir(kotlin_dir)}")
-    # 列出 app_dir 的内容，帮助判断 tauri android init 是否真的生成了文件
-    print(f"      app_dir 内容: {sorted(os.listdir(app_dir)) if os.path.isdir(app_dir) else 'NOT FOUND'}")
-    return None
+            for (f in candidates) {
+                if (f.exists()) {
+                    val txt = f.readText()
+                    val line = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
+                    if (!txt.contains(line)) {
+                        f.writeText(
+                            txt.replaceFirst(
+                                "settings.javaScriptCanOpenWindowsAutomatically = true",
+                                "settings.javaScriptCanOpenWindowsAutomatically = true\\n        $line"
+                            )
+                        )
+                        println("==> [Gradle] 已注入 WebView mixedContentMode -> ${{f.absolutePath}}")
+                    } else {
+                        println("==> [Gradle] mixedContentMode 已存在，跳过")
+                    }
+                    break
+                }
+            }
+        }
+    }
+}
+'''
 
 
 def _inject_webview_mixed_content(app_dir):
     """
-    在 RustWebView.kt 的 init 块中注入混合内容放行设置。
+    通过在 build.gradle.kts 中注入 Gradle 任务，在 Kotlin 编译前修改 RustWebView.kt。
+
+    RustWebView.kt 不是 tauri android init 产生的，而是 Gradle 配置阶段动态生成的。
+    因此 Python 脚本跑在 init 之后、Gradle 之前，永远找不到该文件。
+    改用 Gradle 任务的 doFirst 钩子，在 Kotlin 编译前那一刻注入。
     """
-    webview_path = _find_rust_webview(app_dir)
-
-    if not webview_path:
-        print("==> [警告] 未找到 RustWebView.kt，跳过 WebView mixedContentMode 注入")
-        return
-
-    content = open(webview_path, encoding="utf-8").read()
+    gradle_path = os.path.join(app_dir, "build.gradle.kts")
+    content = open(gradle_path, encoding="utf-8").read()
 
     # 幂等检查
-    if MIXED_CONTENT_LINE in content:
-        print(f"==> WebView mixedContentMode 已设置，跳过：{webview_path}")
+    MARKER = "// A2: inject mixedContentMode"
+    if MARKER in content:
+        print(f"==> Gradle mixedContentMode 任务已存在，跳过")
         return
 
-    # 在 init 块的最后一个 settings 行之后插入
-    # 目标位置：settings.javaScriptCanOpenWindowsAutomatically = true 之后
-    marker = "settings.javaScriptCanOpenWindowsAutomatically = true"
-    pos = content.find(marker)
-    if pos == -1:
-        # 回退到 mediaPlaybackRequiresUserGesture（以防未来 Tauri 模板变化）
-        marker = "settings.mediaPlaybackRequiresUserGesture = false"
-        pos = content.find(marker)
-    if pos == -1:
-        print(f"==> [警告] RustWebView.kt 结构未知，无法注入 mixedContentMode")
-        return
-
-    # 找到 marker 所在行的末尾
-    end_of_line = content.find("\n", pos)
-    if end_of_line == -1:
-        print(f"==> [警告] RustWebView.kt 格式异常")
-        return
-
-    indent = "        "  # 8 空格缩进，与现有 settings 行对齐
-    new_line = f"\n{indent}{MIXED_CONTENT_LINE}"
-    content = content[:end_of_line] + new_line + content[end_of_line:]
-
-    open(webview_path, "w", encoding="utf-8").write(content)
-    print(f"==> 已注入 WebView mixedContentMode → {webview_path}")
+    # 追加到文件末尾
+    new_content = content.rstrip() + "\n" + GRADLE_MIXED_CONTENT_TASK + "\n"
+    open(gradle_path, "w", encoding="utf-8").write(new_content)
+    print(f"==> 已注入 Gradle mixedContentMode 任务 → {gradle_path}")
 
 
 def _print_verification(app_dir):
@@ -333,16 +296,16 @@ def _print_verification(app_dir):
     else:
         print(f"  [nsc] FAIL 未生成!")
 
-    # 3) RustWebView.kt 的关键 settings 行
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    for root, dirs, files in os.walk(java_dir):
-        if "RustWebView.kt" in files:
-            wp = os.path.join(root, "RustWebView.kt")
-            wc = open(wp, encoding="utf-8").read()
-            for line in wc.split("\n"):
-                if "settings." in line and "= " in line:
-                    print(f"  [webview] {line.strip()}")
-            break
+    # 3) Gradle mixedContentMode 任务是否已注入
+    gradle_path2 = os.path.join(app_dir, "build.gradle.kts")
+    if os.path.isfile(gradle_path2):
+        gc = open(gradle_path2, encoding="utf-8").read()
+        if "A2: inject mixedContentMode" in gc:
+            print(f"  [webview] OK Gradle mixedContentMode 任务已注入 (将在 Kotlin 编译前执行)")
+        else:
+            print(f"  [webview] FAIL Gradle 任务未注入!")
+    else:
+        print(f"  [webview] FAIL build.gradle.kts 不存在")
 
     print("=" * 60)
 
