@@ -48,24 +48,6 @@ CLEARTEXT_LINE = 'manifestPlaceholders["usesCleartextTraffic"] = "true"'
 # （不依赖 Python 改 AndroidManifest.xml，因为 tauri android build 可能重新 init 抹掉）
 NSC_PLACEHOLDER_LINE = 'manifestPlaceholders["networkSecurityConfig"] = "@xml/network_security_config"'
 
-# 通过 Gradle resValue 在构建期生成 network_security_config.xml
-# （不依赖磁盘文件，每次 Gradle 构建都会重新生成）
-NSC_RES_VALUE = '''        resValue("xml", "network_security_config", \"\"\"<?xml version="1.0" encoding="utf-8"?>
-        <!-- A2: Gradle 自动生成，勿手改 -->
-        <!--
-          核心作用：Tauri v2 WebView 源是 https://tauri.localhost，
-          从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
-          Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
-          仅靠 manifest 的 usesCleartextTraffic 不够。
-        -->
-        <network-security-config>
-            <base-config cleartextTrafficPermitted="true">
-                <trust-anchors>
-                    <certificates src="system" />
-                </trust-anchors>
-            </base-config>
-        </network-security-config>\"\"\".trimIndent())'''
-
 NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
 <!-- A2: 自动注入，勿手改 -->
 <!--
@@ -141,19 +123,55 @@ def _ensure_nsc_placeholder_in_block(s, marker):
     return s[:i + 1] + "\n        " + NSC_PLACEHOLDER_LINE + s[i + 1:]
 
 
-def _ensure_nsc_res_value_in_block(s, marker):
+GRADLE_NSC_TASK = '''
+// A2: generate network_security_config.xml（防止被 tauri re-init 抹掉）
+afterEvaluate {
+    // 在 Gradle 配置阶段直接写文件（早于所有 task，不会被 tauri 重新 init 影响）
+    val nscXmlDir = file("src/main/res/xml")
+    nscXmlDir.mkdirs()
+    val nscFile = file("$nscXmlDir/network_security_config.xml")
+    // 始终覆盖写，确保内容不会被 tauri init 还原为空模板
+    nscFile.writeText("""<?xml version="1.0" encoding="utf-8"?>
+<!-- A2: Gradle 构建期自动生成，勿手改 -->
+<!--
+  核心作用：Tauri v2 WebView 源是 https://tauri.localhost，
+  从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
+  Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
+  仅靠 manifest 的 usesCleartextTraffic 不够。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>""")
+    println("==> [Gradle] 已确保 network_security_config.xml 存在（Gradle 构建期生成）")
+}
+'''
+
+
+def _inject_nsc_gradle_task(app_dir):
     """
-    确保以 marker 开头的代码块体内包含 resValue 生成 network_security_config.xml。
-    resValue 让 Gradle 在构建时自动生成 XML 资源，无需依赖磁盘文件。
+    向 build.gradle.kts 中注入 Gradle afterEvaluate 钩子，
+    在构建配置阶段生成 network_security_config.xml。
+
+    原因：tauri android build 可能在内部重新调用 tauri android init，
+    这会抹掉 Python 脚本写入的 res/xml/network_security_config.xml。
+    Gradle 的 afterEvaluate 在 init 之后、任务执行之前运行，
+    能确保 XML 文件始终存在。
     """
-    pos = _find_block(s, marker)
-    if pos is None:
-        return s
-    i, j = pos
-    # 检查是否已有 resValue("xml", "network_security_config"...)
-    if 'resValue("xml", "network_security_config"' in s[i:j + 1]:
-        return s  # 已存在，跳过
-    return s[:i + 1] + "\n" + NSC_RES_VALUE + s[i + 1:]
+    gradle_path = os.path.join(app_dir, "build.gradle.kts")
+    content = open(gradle_path, encoding="utf-8").read()
+
+    MARKER = "// A2: generate network_security_config.xml"
+    if MARKER in content:
+        print(f"==> Gradle NSC 生成任务已存在，跳过")
+        return
+
+    new_content = content.rstrip() + "\n" + GRADLE_NSC_TASK + "\n"
+    open(gradle_path, "w", encoding="utf-8").write(new_content)
+    print(f"==> 已注入 Gradle NSC 生成任务 → {gradle_path}")
 
 
 def _inject_nsc_into_manifest(manifest_path, app_dir):
@@ -265,11 +283,10 @@ def inject(path):
 
     # ---- 5) 注入 networkSecurityConfig（Gradle manifestPlaceholders 方式）----
     # 核心：不直接改 AndroidManifest.xml（会被 tauri android build 内部 re-init 抹掉），
-    # 而是通过 build.gradle.kts 的 manifestPlaceholders + resValue 在 Gradle 构建期注入。
-    # 配合 _inject_nsc_into_manifest() 将 AndroidManifest.xml 中属性改为 ${networkSecurityConfig} 占位符，
-    # 由 Gradle 在构建时动态填充。
+    # 而是通过 build.gradle.kts 的 manifestPlaceholders 在 Gradle 构建时动态填充。
+    # XML 文件的生成由 _inject_nsc_gradle_task() 负责（afterEvaluate 写文件），
+    # AndroidManifest.xml 的属性注入由 _inject_nsc_into_manifest() 负责。
     s = _ensure_nsc_placeholder_in_block(s, "defaultConfig {")
-    s = _ensure_nsc_res_value_in_block(s, "defaultConfig {")
 
     open(path, "w", encoding="utf-8").write(s)
     print(f"==> 已注入 release 签名、明文 HTTP 放行、networkSecurityConfig (Gradle 模式)：{path}")
@@ -368,18 +385,18 @@ def _print_verification(app_dir):
         else:
             print(f"  [gradle] FAIL manifestPlaceholders[networkSecurityConfig] 未注入!")
 
-        # 1.6) build.gradle.kts → resValue 生成 network_security_config.xml
-        if 'resValue("xml", "network_security_config"' in content:
-            print(f"  [gradle] OK resValue(\"xml\", \"network_security_config\") 已注入")
+        # 1.6) build.gradle.kts → Gradle afterEvaluate NSC 生成任务
+        if "// A2: generate network_security_config.xml" in content:
+            print(f"  [gradle] OK Gradle NSC 生成任务已注入（afterEvaluate 写文件）")
         else:
-            print(f"  [gradle] FAIL resValue 未注入!")
+            print(f"  [gradle] FAIL Gradle NSC 生成任务未注入!")
 
     # 2) network_security_config.xml 是否存在（磁盘文件，作为备份）
     nsc_path = os.path.join(app_dir, "src", "main", "res", "xml", "network_security_config.xml")
     if os.path.isfile(nsc_path):
         print(f"  [nsc] OK res/xml/network_security_config.xml 已生成（磁盘文件）")
     else:
-        print(f"  [nsc] WARN 磁盘文件未生成（将依赖 Gradle resValue 在构建期生成）")
+        print(f"  [nsc] WARN 磁盘文件未生成（将依赖 Gradle afterEvaluate 在构建期生成）")
 
     # 3) AndroidManifest.xml 的 <application> 关键属性
     manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
@@ -432,7 +449,10 @@ def inject_all(build_gradle_path):
     # 4) 注入 WebView mixedContentMode（解决混合内容拦截）
     _inject_webview_mixed_content(app_dir)
 
-    # 5) 输出注入证据（在 GitHub Actions 日志中可直接看到 APK 实际内容）
+    # 5) 注入 Gradle afterEvaluate 生成 network_security_config.xml（防止 tauri re-init 抹掉）
+    _inject_nsc_gradle_task(app_dir)
+
+    # 6) 输出注入证据（在 GitHub Actions 日志中可直接看到 APK 实际内容）
     _print_verification(app_dir)
 
 
