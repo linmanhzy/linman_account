@@ -214,28 +214,63 @@ def inject(path):
 MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
 
 
+def _find_rust_webview(app_dir):
+    """
+    在多种可能的路径下搜索 RustWebView.kt。
+
+    返回找到的绝对路径，或 None（若未找到）。
+    打印详细调试信息以便 GitHub Actions 日志排错。
+    """
+    # 方案 A：从 AndroidManifest.xml 读取 package，构造精确路径
+    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
+    if os.path.isfile(manifest_path):
+        import re
+        content = open(manifest_path, encoding="utf-8").read()
+        m = re.search(r'package="([^"]+)"', content)
+        if m:
+            pkg = m.group(1)
+            pkg_path = pkg.replace(".", os.sep)
+            candidate = os.path.join(
+                app_dir, "src", "main", "java", pkg_path, "generated", "RustWebView.kt"
+            )
+            if os.path.isfile(candidate):
+                return candidate
+            # 也试 kotlin 目录（某些项目用 kotlin 而非 java）
+            candidate2 = os.path.join(
+                app_dir, "src", "main", "kotlin", pkg_path, "generated", "RustWebView.kt"
+            )
+            if os.path.isfile(candidate2):
+                return candidate2
+
+    # 方案 B：遍历 java 目录树
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    if os.path.isdir(java_dir):
+        for root, dirs, files in os.walk(java_dir):
+            if "RustWebView.kt" in files:
+                return os.path.join(root, "RustWebView.kt")
+
+    # 方案 C：遍历 kotlin 目录树
+    kotlin_dir = os.path.join(app_dir, "src", "main", "kotlin")
+    if os.path.isdir(kotlin_dir):
+        for root, dirs, files in os.walk(kotlin_dir):
+            if "RustWebView.kt" in files:
+                return os.path.join(root, "RustWebView.kt")
+
+    # 全部失败 → 打印详细诊断
+    print(f"==> [错误] 在所有候选路径中均未找到 RustWebView.kt")
+    print(f"      A 方案路径 (from manifest package): 检查了 java/ 和 kotlin/ 下的 generated/RustWebView.kt")
+    print(f"      java_dir = {java_dir}  exists={os.path.isdir(java_dir)}")
+    print(f"      kotlin_dir = {kotlin_dir}  exists={os.path.isdir(kotlin_dir)}")
+    # 列出 app_dir 的内容，帮助判断 tauri android init 是否真的生成了文件
+    print(f"      app_dir 内容: {sorted(os.listdir(app_dir)) if os.path.isdir(app_dir) else 'NOT FOUND'}")
+    return None
+
+
 def _inject_webview_mixed_content(app_dir):
     """
     在 RustWebView.kt 的 init 块中注入混合内容放行设置。
-
-    Tauri v2 生成的 RustWebView.kt 设置了各种 WebView 参数
-    （javaScriptEnabled、domStorageEnabled 等），但唯独没有设置
-    mixedContentMode。WebView 默认值是 MIXED_CONTENT_NEVER_ALLOW，
-    导致从 https://tauri.localhost 向 http:// 后端发请求时被 WebView
-    渲染引擎静默拦截 → axios 收到 Network Error，请求从未离开手机。
-
-    本函数在 init 块末尾插入：
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-
-    幂等：已存在则跳过。
     """
-    # 在 java 目录树上搜索 RustWebView.kt
-    java_dir = os.path.join(app_dir, "src", "main", "java")
-    webview_path = None
-    for root, dirs, files in os.walk(java_dir):
-        if "RustWebView.kt" in files:
-            webview_path = os.path.join(root, "RustWebView.kt")
-            break
+    webview_path = _find_rust_webview(app_dir)
 
     if not webview_path:
         print("==> [警告] 未找到 RustWebView.kt，跳过 WebView mixedContentMode 注入")
