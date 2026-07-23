@@ -10,6 +10,12 @@
 
 ## 近期进展
 
+### 2026-07-23 RustWebView.kt mixedContentMode 注入（WebView 混合内容拦截的真正解法）
+- 关键发现：`network_security_config.xml`（防线 1）不一定能覆盖所有 WebView 实现的混合内容策略；WebView 引擎有自己的 `mixedContentMode` 设置，Tauri v2 生成的 `RustWebView.kt` 未设置它，默认 `MIXED_CONTENT_NEVER_ALLOW`。
+- 修复：**`inject_android_release_config.py`** 新增 `_inject_webview_mixed_content()`，在 `RustWebView.kt` 的 `init` 块末尾插入 `settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW`。至此形成三道防线：build.gradle.kts usesCleartextTraffic → network_security_config.xml → RustWebView.kt mixedContentMode。
+- 测试：`tests/test_inject_android_release_config.py` 新增 3 个 WebView 测试（注入/幂等/完整性），共 **13 tests passed, 0 failed**。
+- 已 push：b1f275c
+
 ### 2026-07-22 修复 CD Release APK 登录报 `Network Error`（WebView 混合内容拦截）
 - 现象：手机浏览器能访问 `http://47.104.152.25:8080/api/health`（网络通），但 Release APK 内登录报 `Network Error`，后端收到 "Error parsing HTTP request header"（疑似 WebView HTTP→HTTPS 升级后 TLS 握手打到了 Tomcat HTTP 端口）。
 - 根因：Tauri v2 WebView 源是 `https://tauri.localhost`（HTTPS），fetch `http://47.104.152.25:8080` 被 WebView 判定为混合内容（Mixed Content）→ 在 WebView 层拦截，请求未离开手机。`android:usesCleartextTraffic="true"` 只控制 App 层，管不到 WebView 内部的混合内容策略。
