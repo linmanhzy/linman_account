@@ -236,7 +236,7 @@ afterEvaluate {
                                 "settings.javaScriptCanOpenWindowsAutomatically = true\\n        $line"
                             )
                         )
-                        println("==> [Gradle] 已注入 WebView mixedContentMode -> ${{f.absolutePath}}")
+                        println("==> [Gradle] 已注入 WebView mixedContentMode -> " + f.absolutePath)
                     } else {
                         println("==> [Gradle] mixedContentMode 已存在，跳过")
                     }
