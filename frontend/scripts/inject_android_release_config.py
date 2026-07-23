@@ -214,8 +214,10 @@ MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWA
 
 GRADLE_MIXED_CONTENT_TASK = '''
 // A2: inject mixedContentMode (WebView 独立混合内容限制 -> ALWAYS_ALLOW)
+// 注意：不移除 "Release" 匹配，因为 debug APK 也需要此注入。
+//       debug 构建时 Kotlin 编译任务名包含 "Debug"，必须也能匹配。
 afterEvaluate {
-    tasks.matching { it.name.contains("Release", ignoreCase = true) && it.name.contains("compileKotlin", ignoreCase = true) }.configureEach {
+    tasks.matching { it.name.contains("compileKotlin", ignoreCase = true) }.configureEach {
         doFirst {
             val namespace = android.namespace ?: "com.wangxinchen.dawang"
             val pkgPath = namespace.replace(".", "/")

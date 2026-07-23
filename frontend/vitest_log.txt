@@ -1,0 +1,49 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+[7m[1m[36m RUN [39m[22m[27m [36mv2.1.0[39m [90md:/itcast/vibeCoding/vibeCoding_HeiMa/account_book/frontend[39m
+
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 已设置（核心路径）[2m > [22m返回配置的服务器地址
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 已设置（核心路径）[2m > [22m返回局域网 IP 地址
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 已设置（核心路径）[2m > [22mDEV=true 时优先用配置值而非 localhost
+ [31m×[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — DEV 模式[2m > [22m返回本地开发默认地址
+[31m   → expected '' to be 'http://127.0.0.1:8080' // Object.is equality[39m
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — DEV 模式[2m > [22m空字符串也回落到本地
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）[2m > [22mundefined 在 PROD 模式返回空字符串（nginx 反代场景，Docker 未传 ARG）
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）[2m > [22m空字符串时抛出错误（用户显式设空 = 配置错误）
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）[2m > [22m错误信息包含中文 "后端地址"
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）[2m > [22m错误信息包含 "VITE_API_BASE"
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）[2m > [22m错误信息包含默认服务器地址
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22m边界情况[2m > [22m带尾部斜杠保留原样
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22m边界情况[2m > [22m仅空格的字符串 PROD 模式抛错
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22m边界情况[2m > [22m前后有空格 trim 后正常返回
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mshowFatalErrorOverlay[2m > [22m注入红色错误覆盖层到 <body>
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mshowFatalErrorOverlay[2m > [22m覆盖层必须设置 maxHeight，避免长报错占满整个屏幕
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mshowFatalErrorOverlay[2m > [22m覆盖层超出 maxHeight 时内容可滚动（overflowY=auto/scroll）
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mshowFatalErrorOverlay[2m > [22m覆盖层必须包含关闭按钮，用户可以关闭
+ [32m✓[39m src/api/apiBase.test.ts[2m > [22mshowFatalErrorOverlay[2m > [22m点击关闭按钮后覆盖层应被移除（DOM 中不再存在）
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m src/api/apiBase.test.ts[2m > [22mresolveApiBase[2m > [22mVITE_API_BASE 未设置 — DEV 模式[2m > [22m返回本地开发默认地址
+[31m[1mAssertionError[22m: expected '' to be 'http://127.0.0.1:8080' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- http://127.0.0.1:8080[39m
+
+[36m [2m❯[22m src/api/apiBase.test.ts:[2m24:22[22m[39m
+    [90m 22| [39m    [34mit[39m([32m'返回本地开发默认地址'[39m[33m,[39m () [33m=>[39m {
+    [90m 23| [39m      [35mconst[39m result [33m=[39m [34mresolveApiBase[39m(undefined[33m,[39m [35mtrue[39m)
+    [90m 24| [39m      [34mexpect[39m(result)[33m.[39m[34mtoBe[39m([32m'http://127.0.0.1:8080'[39m)
+    [90m   | [39m                     [31m^[39m
+    [90m 25| [39m    })
+    [90m 26| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m17 passed[39m[22m[90m (18)[39m
+[2m   Start at [22m 16:14:09
+[2m   Duration [22m 5.09s[2m (transform 78ms, setup 0ms, collect 79ms, tests 134ms, environment 3.24s, prepare 312ms)[22m
+

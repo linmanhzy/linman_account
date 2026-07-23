@@ -2,6 +2,19 @@
 
 > 最后更新：2026-07-23。本文件记录项目**当前进展与动态**，每次操作都会更新；经验与全局记忆见 `CODEBUDDY.md`。
 
+## 近期进展
+
+### 2026-07-23 双修复：Web端红弹窗误报 + App端 Network Error 根因
+- **Web端红弹窗误报**：
+  - 根因：`resolveApiBase` 把 Vite 未设变量（`undefined`）和用户显式设空（`''`）当一回事。Docker 构建前端镜像时没传 VITE_API_BASE → Vite 编译后变量为 `undefined` → PROD 模式下抛错弹红。但 nginx 反代架构下前端应走相对路径 `/api/xxx`，不需要 VITE_API_BASE。
+  - 修复（`frontend/src/api/apiBase.ts`）：`viteApiBase === undefined` 时，DEV 回落 `127.0.0.1:8080`，PROD 回落空串 `''`（axios 走相对路径）。只有用户显式设空串（`''`）才抛错（真配置错误）。
+  - 测试更新（`apiBase.test.ts`）：`undefined,false` 改为期望返回 `''`，而非抛错；空串测试保留抛错。
+- **App端 Network Error（更强修复）**：
+  - 根因：`inject_android_release_config.py` 的 Gradle `mixedContentMode` 注入任务只匹配 `it.name.contains("Release")`，但 `build_debug_server.bat` 构建的是 **debug** APK → Kotlin 编译任务名不含 "Release" → RustWebView.kt 没被注入 `mixedContentMode = MIXED_CONTENT_ALWAYS_ALLOW` → WebView 引擎独立拦截 `http://` 请求 → axios 报 Network Error。
+  - 修复（`frontend/scripts/inject_android_release_config.py`）：移除 `"Release"` 过滤器，改为匹配所有 `compileKotlin` 任务（debug + release 都生效）。
+- 验证：服务器后端在线（HTTP 200），注入脚本 14/14 单测全过。
+- 改动：`apiBase.ts`、`apiBase.test.ts`、`inject_android_release_config.py`。
+
 ## 项目概况（速览）
 - 名称：林蛮记账（多用户联网记账系统）
 - 技术栈：Spring Boot（`backend/`）+ React + Tauri v2（`frontend/`，同一套代码产出 Web 与 Android APK）

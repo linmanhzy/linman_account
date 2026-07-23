@@ -31,17 +31,19 @@ describe('resolveApiBase', () => {
   })
 
   describe('VITE_API_BASE 未设置 — PROD 模式（修复 Invalid URL 根因）', () => {
-    it('undefined 时抛出明确错误', () => {
-      expect(() => resolveApiBase(undefined, false)).toThrow()
+    it('undefined 在 PROD 模式返回空字符串（nginx 反代场景，Docker 未传 ARG）', () => {
+      // Docker 构建时 Vite 未收到 VITE_API_BASE → 变量为 undefined
+      // nginx 反代架构下，前端应该走相对路径 /api/xxx
+      expect(resolveApiBase(undefined, false)).toBe('')
     })
 
-    it('空字符串时也抛出错误', () => {
+    it('空字符串时抛出错误（用户显式设空 = 配置错误）', () => {
       expect(() => resolveApiBase('', false)).toThrow()
     })
 
     it('错误信息包含中文 "后端地址"', () => {
       try {
-        resolveApiBase(undefined, false)
+        resolveApiBase('', false)
         expect.fail('应该抛出错误')
       } catch (e: any) {
         expect(e.message).toContain('后端地址')

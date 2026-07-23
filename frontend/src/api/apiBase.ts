@@ -15,17 +15,31 @@
  * @throws  在 PROD 模式下未配置 VITE_API_BASE 时抛详细错误（修复 "Failed to construct 'URL'" 根因）
  */
 export function resolveApiBase(viteApiBase: string | undefined, isDev: boolean): string {
+  // 情形1：Vite 编译期变量未定义（Docker 构建未传 ARG → VITE_API_BASE=undefined）
+  //        nginx 反代架构下前端应走相对路径 /api/xxx，回落空字符串让 axios 用相对路径
+  //        与情形4（用户显式设空）区分开：
+  //          - undefined = 没传变量
+  //          - 空字符串 = 用户传了但值为空 = 配置错误
+  if (viteApiBase === undefined) {
+    // DEV 模式（npm run dev）VITE_API_BASE 未设 → 连本机后端
+    if (isDev) {
+      return 'http://127.0.0.1:8080'
+    }
+    // PROD 模式（Docker 构建 / nginx 反代）VITE_API_BASE 未设 → 用相对路径
+    return ''
+  }
+
   const configured = (viteApiBase || '').trim()
   if (configured) {
     return configured
   }
 
-  // DEV 模式（npm run dev）：默认连本机后端
+  // DEV 模式 + 空字符串 → 连本机后端
   if (isDev) {
     return 'http://127.0.0.1:8080'
   }
 
-  // PROD 模式（vite build / tauri android build）：未配置 VITE_API_BASE 是严重错误
+  // 情形4：PROD 模式 + 用户显式设为空串 = 明确配置错误
   // 之前回落到空字符串 → 后续 axios 构造 URL 时抛 "Failed to construct 'URL': invalid URL"
   // 用户看到的是毫无线索的英文报错，无法排查。
   // 现在改为在初始阶段就抛出中文详细错误（无 ASCII art 边框，节省屏幕空间）。
