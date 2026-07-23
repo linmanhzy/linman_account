@@ -150,7 +150,7 @@ afterEvaluate {
     // manifestPlaceholders 就成了"有钥匙没锁孔"。
     // 这里直接用字符串替换把硬编码属性写进去，不再依赖占位符机制。
     val attr = """android:networkSecurityConfig="@xml/network_security_config""""
-    val ph = """android:networkSecurityConfig="${networkSecurityConfig}""""
+    val ph = """android:networkSecurityConfig="${'$'}{networkSecurityConfig}""""
     val mf = file("src/main/AndroidManifest.xml")
     if (mf.exists()) {
         var mft = mf.readText()
