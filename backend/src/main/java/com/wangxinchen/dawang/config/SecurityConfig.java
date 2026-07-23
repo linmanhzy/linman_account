@@ -1,6 +1,8 @@
 package com.wangxinchen.dawang.config;
 
 import com.wangxinchen.dawang.security.JwtAuthenticationFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -23,6 +25,8 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Value("${myapp.cors.allowed-origins:http://localhost:5173}")
@@ -65,6 +69,15 @@ public class SecurityConfig {
         // 表现为「服务器 health 正常、但 CD 产出的 APK 登录失败」。
         if (origins.isEmpty()) {
             origins = List.of("*");
+            log.warn("CORS origins 为空，回退为允许所有源 (*)。请检查服务器 .env 中 CORS_ORIGINS 配置。");
+        }
+
+        // 输出当前生效的 CORS origins，方便排查 APK Network Error 问题
+        log.info("CORS 允许的源: {}", origins);
+        boolean hasTauriOrigin = origins.stream().anyMatch(o -> o.contains("tauri.localhost"));
+        if (!hasTauriOrigin && !origins.contains("*")) {
+            log.warn("CORS origins 中未包含 tauri.localhost！安卓 APK 的 WebView 请求可能被 CORS 拦截，"
+                    + "表现为 Network Error。请确保 CORS_ORIGINS 环境变量包含 https://tauri.localhost");
         }
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

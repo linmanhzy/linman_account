@@ -81,3 +81,46 @@ python3 scripts/inject_android_release_config.py "$APP_GRADLE"
 echo "==> [4/4] 构建 APK (--split-per-abi)"
 npx tauri android build --split-per-abi
 echo "BUILD DONE"
+
+# ============================================================
+# 构建后验证：确认关键注入在 APK 中生效
+# ============================================================
+echo ""
+echo "========== [验证] 检查构建产物 =========="
+
+# 验证1：检查最终 AndroidManifest.xml 是否包含 networkSecurityConfig
+FINAL_MANIFEST=$(find "$APP_DIR/build" -name "AndroidManifest.xml" -path "*/release/*" 2>/dev/null | head -1)
+if [ -n "$FINAL_MANIFEST" ] && [ -f "$FINAL_MANIFEST" ]; then
+  if grep -q "networkSecurityConfig" "$FINAL_MANIFEST"; then
+    echo "  [PASS] AndroidManifest.xml 包含 networkSecurityConfig"
+  else
+    echo "  [WARN] AndroidManifest.xml 缺少 networkSecurityConfig（将依赖 usesCleartextTraffic + MIXED_CONTENT_ALWAYS_ALLOW）"
+    echo "  [INFO] usesCleartextTraffic 状态:"
+    grep -c "usesCleartextTraffic" "$FINAL_MANIFEST" && echo "    usesCleartextTraffic 存在" || echo "    usesCleartextTraffic 缺失!"
+  fi
+else
+  echo "  [INFO] 未找到最终 merged manifest，跳过验证（非致命）"
+fi
+
+# 验证2：检查 RustWebView.kt 是否包含 MIXED_CONTENT_ALWAYS_ALLOW 注入
+RUSTWEBVIEW=$(find "$APP_DIR/build" -name "RustWebView.kt" 2>/dev/null | head -1)
+if [ -n "$RUSTWEBVIEW" ] && [ -f "$RUSTWEBVIEW" ]; then
+  if grep -q "MIXED_CONTENT_ALWAYS_ALLOW" "$RUSTWEBVIEW"; then
+    echo "  [PASS] RustWebView.kt 包含 MIXED_CONTENT_ALWAYS_ALLOW"
+  else
+    echo "  [FAIL] RustWebView.kt 缺少 MIXED_CONTENT_ALWAYS_ALLOW 注入！"
+    echo "  [INFO] 这会导致 Android WebView 拦截 HTTP 请求（HTTPS 源 → HTTP 目标），"
+    echo "         App 会报 Network Error。请检查 inject_android_release_config.py 的锚点字符串。"
+    exit 1
+  fi
+else
+  echo "  [WARN] 未找到 RustWebView.kt（Gradle 可能尚未生成，非致命）"
+fi
+
+# 验证3：确认 APK 文件生成
+echo ""
+echo "===== 生成的 APK ====="
+find "$APP_DIR/build/outputs/apk" -name "*.apk" -exec ls -lh {} \;
+
+echo ""
+echo "========== 验证完成 =========="

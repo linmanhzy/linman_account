@@ -89,7 +89,34 @@ raw.interceptors.response.use(
         window.location.href = '/login'
       }
     }
-    const msg = error.response?.data?.message || error.message || '网络错误，请确认后端已启动'
+
+    // 拼接详细的错误信息，方便手机端排查（无 DevTools）
+    let msg = error.response?.data?.message || error.message || '网络错误，请确认后端已启动'
+
+    // 如果是网络错误（无 response），附加请求 URL 和 API_BASE 便于定位
+    if (!error.response && error.config) {
+      const reqUrl = error.config.baseURL + error.config.url
+      msg = [
+        '网络请求失败，无法连接到服务器。',
+        '',
+        '可能原因：',
+        '  1. 手机网络不通（请检查 WiFi 或流量是否正常）',
+        '  2. 服务器端口被运营商拦截（尝试切换 WiFi/流量）',
+        '  3. 后端服务未运行或地址配置错误',
+        '',
+        '请求地址: ' + reqUrl,
+        'API 基址: ' + API_BASE,
+        '原始错误: ' + (error.message || '未知'),
+      ].join('\n')
+
+      // 显示 DOM 可见覆盖层，方便手机端排查
+      try {
+        showFatalErrorOverlay(msg)
+      } catch {
+        // DOM 操作失败，忽略
+      }
+    }
+
     return Promise.reject(new Error(msg))
   },
 )

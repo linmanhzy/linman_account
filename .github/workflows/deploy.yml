@@ -102,10 +102,18 @@ jobs:
 
             # 更新镜像版本号到 .env，让 compose 拉取正确版本
             sed -i "s/^APP_VERSION=.*/APP_VERSION=${{ github.event.inputs.version }}/" .env
-            # 确保 CORS_ORIGINS 包含 Tauri WebView 源（幂等：不存在才追加）
-            if ! grep -q "https://tauri.localhost" .env 2>/dev/null; then
-              echo "CORS_ORIGINS=https://tauri.localhost" >> .env
-              echo "==> 已追加 CORS_ORIGINS 到 .env"
+            # 确保 CORS_ORIGINS 包含 Tauri WebView 源（不覆盖已有值）
+            CURRENT_CORS=$(grep '^CORS_ORIGINS=' .env 2>/dev/null | cut -d= -f2-)
+            if [ -z "$CURRENT_CORS" ]; then
+              # 首次：写入完整默认列表 + Tauri 源
+              echo "CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,https://tauri.localhost" >> .env
+              echo "==> 已初始化 CORS_ORIGINS（含 tauri.localhost）"
+            elif ! echo "$CURRENT_CORS" | grep -q "tauri.localhost"; then
+              # 已有 CORS_ORIGINS 但不含 tauri.localhost → 追加（不覆盖已有值）
+              sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=${CURRENT_CORS},https://tauri.localhost|" .env
+              echo "==> 已追加 tauri.localhost 到 CORS_ORIGINS（保留已有 origins）"
+            else
+              echo "==> CORS_ORIGINS 已包含 tauri.localhost，跳过"
             fi
             echo "当前 APP_VERSION=${{ github.event.inputs.version }}"
 

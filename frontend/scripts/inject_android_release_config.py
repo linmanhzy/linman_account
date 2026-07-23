@@ -44,6 +44,28 @@ SIGNING_BLOCK = '''    // A2: release 签名配置（CI 自动注入，勿手改
 
 CLEARTEXT_LINE = 'manifestPlaceholders["usesCleartextTraffic"] = "true"'
 
+# 通过 Gradle manifestPlaceholders 让 networkSecurityConfig 引用存活
+# （不依赖 Python 改 AndroidManifest.xml，因为 tauri android build 可能重新 init 抹掉）
+NSC_PLACEHOLDER_LINE = 'manifestPlaceholders["networkSecurityConfig"] = "@xml/network_security_config"'
+
+# 通过 Gradle resValue 在构建期生成 network_security_config.xml
+# （不依赖磁盘文件，每次 Gradle 构建都会重新生成）
+NSC_RES_VALUE = '''        resValue("xml", "network_security_config", \"\"\"<?xml version="1.0" encoding="utf-8"?>
+        <!-- A2: Gradle 自动生成，勿手改 -->
+        <!--
+          核心作用：Tauri v2 WebView 源是 https://tauri.localhost，
+          从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
+          Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
+          仅靠 manifest 的 usesCleartextTraffic 不够。
+        -->
+        <network-security-config>
+            <base-config cleartextTrafficPermitted="true">
+                <trust-anchors>
+                    <certificates src="system" />
+                </trust-anchors>
+            </base-config>
+        </network-security-config>\"\"\".trimIndent())'''
+
 NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
 <!-- A2: 自动注入，勿手改 -->
 <!--
@@ -51,7 +73,7 @@ NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
   从 HTTPS 页面向 http:// 后端发请求会被 WebView 的「Mixed Content」策略拦截。
   Android 的 network_security_config 可以覆盖 WebView 的混合内容策略，
   仅靠 manifest 的 usesCleartextTraffic 不够。
-  
+
   详见 docs/debug-build-troubleshooting.md §混合内容拦截
 -->
 <network-security-config>
@@ -64,7 +86,12 @@ NETWORK_SECURITY_CONFIG_XML = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 # AndroidManifest.xml 的 <application> 标签中要注入的属性
-NSC_ATTR = 'android:networkSecurityConfig="@xml/network_security_config"'
+# 使用 manifestPlaceholder 占位符语法，配合 build.gradle.kts 中的
+# manifestPlaceholders["networkSecurityConfig"] 在 Gradle 构建时解析。
+# 这样即使 tauri android build 内部重新 init 抹掉该属性，
+# 只要 build.gradle.kts 中有对应的 manifestPlaceholders 配置（通过 Python 注入），
+# Gradle 就会在构建时填充。
+NSC_ATTR = 'android:networkSecurityConfig="${networkSecurityConfig}"'
 
 
 def _find_block(s, marker):
@@ -96,6 +123,37 @@ def _ensure_cleartext_in_block(s, marker):
         return s  # 已存在，跳过
     # 在 '{' 之后插入（8 空格缩进，与块内其他语句对齐）
     return s[:i + 1] + "\n        " + CLEARTEXT_LINE + s[i + 1:]
+
+
+def _ensure_nsc_placeholder_in_block(s, marker):
+    """
+    确保以 marker 开头的代码块体内包含 NSC_PLACEHOLDER_LINE（幂等）。
+    这是 Gradle manifestPlaceholders 方式的核心 ——
+    不依赖磁盘上的 AndroidManifest.xml（会被 Tauri re-init 抹掉），
+    而是在 build.gradle.kts 中配置，Gradle 构建时动态填充。
+    """
+    pos = _find_block(s, marker)
+    if pos is None:
+        return s
+    i, j = pos
+    if NSC_PLACEHOLDER_LINE in s[i:j + 1]:
+        return s  # 已存在，跳过
+    return s[:i + 1] + "\n        " + NSC_PLACEHOLDER_LINE + s[i + 1:]
+
+
+def _ensure_nsc_res_value_in_block(s, marker):
+    """
+    确保以 marker 开头的代码块体内包含 resValue 生成 network_security_config.xml。
+    resValue 让 Gradle 在构建时自动生成 XML 资源，无需依赖磁盘文件。
+    """
+    pos = _find_block(s, marker)
+    if pos is None:
+        return s
+    i, j = pos
+    # 检查是否已有 resValue("xml", "network_security_config"...)
+    if 'resValue("xml", "network_security_config"' in s[i:j + 1]:
+        return s  # 已存在，跳过
+    return s[:i + 1] + "\n" + NSC_RES_VALUE + s[i + 1:]
 
 
 def _inject_nsc_into_manifest(manifest_path, app_dir):
@@ -205,8 +263,16 @@ def inject(path):
     s = _ensure_cleartext_in_block(s, 'getByName("release") {')
     s = _ensure_cleartext_in_block(s, "defaultConfig {")
 
+    # ---- 5) 注入 networkSecurityConfig（Gradle manifestPlaceholders 方式）----
+    # 核心：不直接改 AndroidManifest.xml（会被 tauri android build 内部 re-init 抹掉），
+    # 而是通过 build.gradle.kts 的 manifestPlaceholders + resValue 在 Gradle 构建期注入。
+    # 配合 _inject_nsc_into_manifest() 将 AndroidManifest.xml 中属性改为 ${networkSecurityConfig} 占位符，
+    # 由 Gradle 在构建时动态填充。
+    s = _ensure_nsc_placeholder_in_block(s, "defaultConfig {")
+    s = _ensure_nsc_res_value_in_block(s, "defaultConfig {")
+
     open(path, "w", encoding="utf-8").write(s)
-    print(f"==> 已注入 release 签名与明文 HTTP 放行：{path}")
+    print(f"==> 已注入 release 签名、明文 HTTP 放行、networkSecurityConfig (Gradle 模式)：{path}")
 
 
 MIXED_CONTENT_LINE = "settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW"
@@ -296,12 +362,24 @@ def _print_verification(app_dir):
         if "create(\"release\")" in content and "usesCleartextTraffic" in content:
             print(f"  [gradle] OK 签名块 + usesCleartextTraffic 已注入")
 
-    # 2) network_security_config.xml 是否存在
+        # 1.5) build.gradle.kts → manifestPlaceholders["networkSecurityConfig"]（Gradle 方式）
+        if 'manifestPlaceholders["networkSecurityConfig"]' in content:
+            print(f"  [gradle] OK manifestPlaceholders[networkSecurityConfig] 已注入（Gradle 模式）")
+        else:
+            print(f"  [gradle] FAIL manifestPlaceholders[networkSecurityConfig] 未注入!")
+
+        # 1.6) build.gradle.kts → resValue 生成 network_security_config.xml
+        if 'resValue("xml", "network_security_config"' in content:
+            print(f"  [gradle] OK resValue(\"xml\", \"network_security_config\") 已注入")
+        else:
+            print(f"  [gradle] FAIL resValue 未注入!")
+
+    # 2) network_security_config.xml 是否存在（磁盘文件，作为备份）
     nsc_path = os.path.join(app_dir, "src", "main", "res", "xml", "network_security_config.xml")
     if os.path.isfile(nsc_path):
-        print(f"  [nsc] OK res/xml/network_security_config.xml 已生成")
+        print(f"  [nsc] OK res/xml/network_security_config.xml 已生成（磁盘文件）")
     else:
-        print(f"  [nsc] FAIL 未生成!")
+        print(f"  [nsc] WARN 磁盘文件未生成（将依赖 Gradle resValue 在构建期生成）")
 
     # 3) AndroidManifest.xml 的 <application> 关键属性
     manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
