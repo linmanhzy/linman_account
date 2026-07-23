@@ -91,4 +91,44 @@ describe('showFatalErrorOverlay', () => {
     expect(el!.textContent).toContain('测试错误信息')
     expect(el!.style.background).toBe('rgb(168, 7, 26)')
   })
+
+  it('覆盖层必须设置 maxHeight，避免长报错占满整个屏幕', () => {
+    document.body.innerHTML = ''
+    showFatalErrorOverlay('A'.repeat(5000))
+    const el = document.getElementById('__linman_fatal_error__')
+    expect(el).not.toBeNull()
+    const maxHeight = el!.style.maxHeight
+    expect(maxHeight).toBeTruthy()
+    expect(maxHeight).not.toBe('')
+    // max-height 必须含有 vh 或 px 单位，不能无限长
+    expect(/vh|px|em|rem/.test(maxHeight)).toBe(true)
+  })
+
+  it('覆盖层超出 maxHeight 时内容可滚动（overflowY=auto/scroll）', () => {
+    document.body.innerHTML = ''
+    showFatalErrorOverlay('A'.repeat(5000))
+    const el = document.getElementById('__linman_fatal_error__')
+    expect(el).not.toBeNull()
+    const overflowY = el!.style.overflowY
+    expect(['auto', 'scroll']).toContain(overflowY)
+  })
+
+  it('覆盖层必须包含关闭按钮，用户可以关闭', () => {
+    document.body.innerHTML = ''
+    showFatalErrorOverlay('测试错误信息')
+    const el = document.getElementById('__linman_fatal_error__')
+    expect(el).not.toBeNull()
+    const closeBtn = el!.querySelector('[data-linman-close]') as HTMLElement
+    expect(closeBtn).not.toBeNull()
+  })
+
+  it('点击关闭按钮后覆盖层应被移除（DOM 中不再存在）', () => {
+    document.body.innerHTML = ''
+    showFatalErrorOverlay('测试错误信息')
+    const el = document.getElementById('__linman_fatal_error__')
+    const closeBtn = el!.querySelector('[data-linman-close]') as HTMLButtonElement
+    expect(closeBtn).not.toBeNull()
+    closeBtn.click()
+    expect(document.getElementById('__linman_fatal_error__')).toBeNull()
+  })
 })

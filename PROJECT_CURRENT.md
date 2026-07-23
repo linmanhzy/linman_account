@@ -10,6 +10,14 @@
 
 ## 近期进展
 
+### 2026-07-23 前端错误覆盖层显示问题修复（TDD，已重构建 dist）
+- 现象：浏览器顶部红色错误覆盖层过大（占屏幕 1/4 高度）、不可关闭、文本含 ASCII art 边框(`║`/`╔`/`╗`/`╚`/`╝`/`╠`/`╣`)又长又丑，长文本无 max-height 也无滚动。
+- TDD 流程（先红后绿）：
+  - 红灯：apiBase.test.ts 新增 4 个测试，断言覆盖层必须有 `max-height` 单位（vh/px/em/rem）、必须有 `overflow-y: auto`、必须有 `[data-linman-close]` 关闭按钮、点击后必须从 DOM 移除。14 → 18 (4 failed)。
+  - 绿灯：①`apiBase.ts` overlay 加 `max-height: 60vh` + `overflow-y: auto` + `box-sizing: border-box`；②构造 `<button data-linman-close>` 绝对定位右上角，点击调用 `overlay.remove()`；③错误信息去掉 ║╔╗╠╣╚╝ 全部 ASCII 边框字符，用纯文本 + `·` 项目符号，更紧凑。
+- 验证：vitest 18/18 ✅，后端 mvn test 116/117（ConcurrentRecordTest 偶发 H2 连接池超时，与本次改动无关），dist 重新构建成功（44.81s）。
+- 改动：`frontend/src/api/apiBase.ts`、`frontend/src/api/apiBase.test.ts`、`frontend/dist/` 重新构建。
+
 ### 2026-07-23 CD 镜像构建单元测试失败修复（TDD，已推送）
 - 现象：JwtUtilTest.parse_invalidToken_shouldThrowJwtException 在 GitHub Actions (Ubuntu/Temurin JDK) 上失败：`Expected JwtException to be thrown, but nothing was thrown`。本地 Windows/Oracle JDK 却通过。
 - 根因：原测试只改 token 末位字符 `bad.charAt(last)=='A'?'B':'A'`，在 Temurin JDK 的 jjwt 实现中，某些 base64url 字符的单字符替换不触发 HMAC 签名校验失败——库在底层静默处理了。这不是代码 bug，是 JDK 实现的细微差异导致"改一位不保证触发 JwtException"。
