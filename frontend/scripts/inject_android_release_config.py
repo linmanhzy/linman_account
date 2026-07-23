@@ -274,6 +274,44 @@ def _inject_webview_mixed_content(app_dir):
     print(f"==> 已注入 WebView mixedContentMode → {webview_path}")
 
 
+def _print_verification(app_dir):
+    """
+    在 inject_all 完成后输出「已注入证据」，便于在 GitHub Actions 日志中
+    直观确认 APK 实际包含的注入项。
+    """
+    print("=" * 60)
+    print("==> [构建证据] 注入后实际内容（APK 里将包含这些）")
+    print("=" * 60)
+
+    # 1) AndroidManifest.xml 的 <application> 关键属性
+    manifest_path = os.path.join(app_dir, "src", "main", "AndroidManifest.xml")
+    if os.path.isfile(manifest_path):
+        content = open(manifest_path, encoding="utf-8").read()
+        for line in content.split("\n"):
+            if "usesCleartextTraffic" in line or "networkSecurityConfig" in line:
+                print(f"  [manifest] {line.strip()}")
+
+    # 2) network_security_config.xml 是否存在
+    nsc_path = os.path.join(app_dir, "src", "main", "res", "xml", "network_security_config.xml")
+    if os.path.isfile(nsc_path):
+        print(f"  [nsc] OK res/xml/network_security_config.xml 已生成")
+    else:
+        print(f"  [nsc] FAIL 未生成!")
+
+    # 3) RustWebView.kt 的关键 settings 行
+    java_dir = os.path.join(app_dir, "src", "main", "java")
+    for root, dirs, files in os.walk(java_dir):
+        if "RustWebView.kt" in files:
+            wp = os.path.join(root, "RustWebView.kt")
+            wc = open(wp, encoding="utf-8").read()
+            for line in wc.split("\n"):
+                if "settings." in line and "= " in line:
+                    print(f"  [webview] {line.strip()}")
+            break
+
+    print("=" * 60)
+
+
 def inject_all(build_gradle_path):
     """
     执行完整注入流程（以上所有步骤）。
@@ -302,6 +340,9 @@ def inject_all(build_gradle_path):
 
     # 4) 注入 WebView mixedContentMode（解决混合内容拦截）
     _inject_webview_mixed_content(app_dir)
+
+    # 5) 输出注入证据（在 GitHub Actions 日志中可直接看到 APK 实际内容）
+    _print_verification(app_dir)
 
 
 if __name__ == "__main__":

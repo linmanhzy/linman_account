@@ -215,8 +215,8 @@ jobs:
           body: |
             ## 林蛮记账 安卓安装包
 
-            - **arm64-v8a**（绝大多数现代手机，推荐）：`app-arm64-v8a-release.apk`
-            - **armeabi-v7a**（较老 32 位手机）：`app-armeabi-v7a-release.apk`
+            - **arm64-v8a**（绝大多数现代手机，推荐）：`app-arm64-release.apk`
+            - **armeabi-v7a**（较老 32 位手机）：`app-arm-release.apk`
             - **x86_64 / x86**（模拟器）：`app-x86_64-release.apk` / `app-x86-release.apk`
 
             > 安装后 App 自动连接服务器后端，无需任何配置。
